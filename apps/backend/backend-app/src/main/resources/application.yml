@@ -1,0 +1,104 @@
+server:
+  port: ${SERVER_PORT:8003}
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.vectorstore.qdrant.autoconfigure.QdrantVectorStoreAutoConfiguration
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+  ai:
+    model:
+      chat: ${SPRING_AI_CHAT_MODEL:none}
+      embedding: ${SPRING_AI_EMBEDDING_MODEL:none}
+    openai:
+      api-key: ${AI_CHAT_API_KEY:${AI_API_KEY:}}
+      base-url: ${AI_CHAT_BASE_URL:${AI_BASE_URL:https://api.openai.com}}
+      timeout: ${AI_REQUEST_TIMEOUT:30s}
+      max-retries: ${AI_MAX_RETRIES:0}
+      chat:
+        options:
+          model: ${AI_CHAT_MODEL:${AI_MODEL:gpt-4.1-mini}}
+    vectorstore:
+      qdrant:
+        host: ${QDRANT_HOST:127.0.0.1}
+        port: ${QDRANT_GRPC_PORT:6334}
+        api-key: ${QDRANT_API_KEY:}
+        collection-name: ${AI_RAG_COLLECTION:xzs_408_chunks_spring_v1}
+        use-tls: ${QDRANT_USE_TLS:false}
+        initialize-schema: ${AI_RAG_VECTOR_ENABLED:false}
+  datasource:
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/xzs?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
+    table: flyway_schema_history
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+
+system:
+  security-ignore-urls:
+    - /api/wx/**
+    - /api/admin/upload/configAndUpload
+    - /api/admin/upload/auth
+    - /api/student/user/register
+    - /api/test/**
+  pwd-key:
+    public-key: ${AUTH_RSA_PUBLIC_KEY:}
+    private-key: ${AUTH_RSA_PRIVATE_KEY:}
+  qn:
+    url: ${QINIU_URL:}
+    bucket: ${QINIU_BUCKET:}
+    access-key: ${QINIU_ACCESS_KEY:}
+    secret-key: ${QINIU_SECRET_KEY:}
+  wx:
+    appid: ${WECHAT_APP_ID:}
+    secret: ${WECHAT_APP_SECRET:}
+    token-to-live: 12h
+    security-ignore-urls:
+      - /api/wx/student/auth/bind
+      - /api/wx/student/auth/checkBind
+      - /api/wx/student/user/register
+
+ai:
+  engine: ${AI_ENGINE:legacy}
+  secret:
+    master-key: ${AI_SECRET_MASTER_KEY:}
+  spring:
+    provider-source: ${AI_PROVIDER_SOURCE:database}
+  api:
+    type: ${AI_PROVIDER:glm}
+    key: ${AI_API_KEY:}
+    url: ${AI_API_URL:https://open.bigmodel.cn/api/paas/v4/chat/completions}
+  embedding:
+    key: ${AI_EMBEDDING_API_KEY:${AI_API_KEY:}}
+    base-url: ${AI_EMBEDDING_BASE_URL:https://open.bigmodel.cn/api/paas/v4}
+    url: ${AI_EMBEDDING_URL:https://open.bigmodel.cn/api/paas/v4/embeddings}
+    model: ${AI_EMBEDDING_MODEL:embedding-2}
+    dimension: ${AI_EMBEDDING_DIMENSION:1024}
+  memory:
+    enabled: ${AI_MEMORY_ENABLED:true}
+    max-messages: ${AI_MEMORY_MAX_MESSAGES:12}
+    ttl: ${AI_MEMORY_TTL:24h}
+    key-prefix: ${AI_MEMORY_KEY_PREFIX:master408:chat-memory:}
+  rag:
+    vector:
+      enabled: ${AI_RAG_VECTOR_ENABLED:false}
+      collection: ${AI_RAG_COLLECTION:xzs_408_chunks_spring_v1}
+      similarity-threshold: ${AI_RAG_SIMILARITY_THRESHOLD:0.5}
+      batch-size: ${AI_RAG_INDEX_BATCH_SIZE:20}
+
+logging:
+  level:
+    com.mindskip.xzs: INFO

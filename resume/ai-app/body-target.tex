@@ -1,0 +1,39 @@
+% 目标完成版：只在 408Master 对应规划能力真实完成后转为投递版。
+\logosection{\faUser}{个人简介}
+东华大学软件工程 2027 届，聚焦 AI 应用与 Java 后端。主导教育 AI 学习平台并完成从手写 LLM/RAG 编排到 Spring AI 标准化架构的演进；另有已上线 AI 文字冒险游戏。具备 Prompt、RAG、Memory、Tool Calling、MCP、SSE 流式与全栈交付经验，重视可观测、权限边界和技术选型的成本收益。
+
+\logosection{\faCogs}{核心技能}
+\begin{itemize}[parsep=0.35ex]
+  \item \textbf{AI 应用}：Spring AI、ChatClient / Advisor、ChatMemory、RAG、Tool Calling、MCP；理解 LLM 无状态、上下文工程、ReAct 与 Agent 权限边界。
+  \item \textbf{后端与数据}：Java 21、Spring Boot 4、MyBatis、MySQL、Redis、Qdrant；熟悉 REST、SSE、Docker、Nginx、Git。
+  \item \textbf{Python / 前端}：Python、FastAPI、LlamaIndex；Vue 3、Next.js、TypeScript、微信小程序。
+  \item \textbf{模型基础}：Transformer / Attention；完成 BERT / LSTM 中文 NER 与 BART 文本生成微调实验。
+\end{itemize}
+
+\logosection{\faWrench}{项目经历}
+
+\datedline{\textbf{408Master：面向 408 备考的 AI 学习平台}}{校实训二等奖 · 任队长}
+\datedline{\tripleInfo{Java 21 / Spring Boot 4 / Spring AI 2}{Redis / Qdrant / LlamaIndex}{Vue 3 / 微信小程序}}{\href{https://github.com/tiankai-333/master408}{github.com/tiankai-333/master408}}
+\begin{itemize}
+  \item \textbf{架构演进}：在保留题库、组卷、前端与 MyBatis 业务资产的基础上，将手写 HTTP/SSE、正则路由和双轨 RAG 迁移为 ChatClient、Advisor、VectorStore 与 Tool Calling；以 A/B 开关和固定测试集对比功能、p95 延迟、token 成本及改动面。
+  \item \textbf{多轮教学}：以 Redis ChatMemory 持久化会话，将一次性“柏拉图解析”改为逐轮追问；按 conversationId 隔离学生上下文，并通过窗口裁剪/摘要控制上下文与成本。
+  \item \textbf{检索与工具}：以 LlamaIndex Python 边车完成文档解析、分块和增量入库，Java 查询侧统一走 Spring AI VectorStore；把查题、错题优先组卷等成熟业务服务封装为真实 Tool，由模型决策、代码确定性执行。
+  \item \textbf{工程治理}：统一记录 token、费用、耗时和失败原因；MCP 暴露脱敏健康、日志、指标等只读运维工具，破坏性操作必须人工审批；API Key 使用 AES-GCM 加密并从环境变量注入。
+\end{itemize}
+
+\datedline{\textbf{StoryCraft：AI 文字冒险游戏（已上线）}}{}
+\datedline{\tripleInfo{Python / FastAPI}{Next.js / TypeScript}{Agent Runtime / SSE}}{\href{https://github.com/baodashuaige/StoryCraft}{github.com/baodashuaige/StoryCraft}}
+\begin{itemize}
+  \item 自建 Agent Runtime 管理世界状态与动作合法性，划分“LLM 生成叙事、确定性代码修改状态”的权限边界；以 Prompt 模板和门控校验约束输出，NPC 人格、秘密、信任值、线索与记忆共同驱动多结局。
+  \item 提供 REST API、SSE 流式、Web/CLI 双端；API Key 服务端加密，单元测试 176 passed；沉淀开源 npm 包 \texttt{@wutiankai/npc-dialogue}，产品已部署至 \href{https://game.mastertooling.shop}{game.mastertooling.shop}。
+\end{itemize}
+
+\datedline{\textbf{自然语言处理课程项目}}{课程项目}
+\begin{itemize}
+  \item 基于 CLUENER2020 训练 BERT / LSTM 完成中文命名实体识别，并基于 BART 进行文本生成微调，覆盖数据处理、训练与评估流程。
+\end{itemize}
+
+\logosection{\faTrophy}{荣誉与教育经历}
+\datedline{东华大学软件工程实训二等奖（408 项目队长）}{}
+\datedline{\textbf{东华大学（211）} · 软件工程本科 · 计算机科学与技术学院}{2023.09 -- 2027.06}
+\datedline{主修：数据结构、算法、操作系统、计算机网络、数据库、自然语言处理}{上海}

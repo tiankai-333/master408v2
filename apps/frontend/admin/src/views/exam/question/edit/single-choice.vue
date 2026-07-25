@@ -1,0 +1,183 @@
+<template>
+  <div class="app-container">
+    <el-form :model="form" ref="formRef" label-width="100px" v-loading="formLoading" :rules="rules">
+      <el-form-item label="学科：" prop="subjectId" required>
+        <el-select v-model="form.subjectId" placeholder="学科">
+          <el-option v-for="item in subjectFilter" :key="item.id" :value="item.id"
+                     :label="item.name+' ( '+item.levelName+' )'"></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="难度：" prop="difficult" required>
+        <el-select v-model="form.difficult" placeholder="难度">
+          <el-option v-for="item in difficultEnum" :key="item.key" :value="item.key" :label="item.value"></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="分数：" prop="score" required>
+        <el-input v-model.number="form.score" type="number"/>
+      </el-form-item>
+      <el-form-item label="题干：" prop="title" required>
+        <el-input v-model="form.title" type="textarea" :rows="3"/>
+      </el-form-item>
+      <el-form-item label="选项：" prop="items" required>
+        <div v-for="(item, index) in form.items" :key="index" class="item-row">
+          <el-input v-model="item.prefix" :disabled="true" style="width: 50px"/>
+          <el-input v-model="item.content" placeholder="选项内容"/>
+          <el-checkbox v-model="item.isAnswer" :disabled="form.items.filter(i => i.isAnswer).length > 0 && !item.isAnswer">
+            正确答案
+          </el-checkbox>
+          <el-button v-if="form.items.length > 2" type="text" @click="removeItem(index)">删除</el-button>
+        </div>
+        <el-button type="text" @click="addItem">添加选项</el-button>
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="submitForm">提交</el-button>
+        <el-button @click="resetForm">重置</el-button>
+      </el-form-item>
+    </el-form>
+  </div>
+</template>
+
+<script setup>
+import { ElMessage } from 'element-plus'
+import { reactive, ref, onMounted, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import questionApi from '@/api/question'
+import { useEnumItemStore } from '@/stores/enumItem'
+import { useExamStore } from '@/stores/exam'
+import { useTagsViewStore } from '@/stores/tagsView'
+
+const route = useRoute()
+const router = useRouter()
+const enumItemStore = useEnumItemStore()
+const examStore = useExamStore()
+const tagsViewStore = useTagsViewStore()
+
+const form = reactive({
+  id: null,
+  subjectId: null,
+  questionType: 1,
+  difficult: 1,
+  score: 5,
+  title: '',
+  items: [
+    { prefix: 'A', content: '', isAnswer: false },
+    { prefix: 'B', content: '', isAnswer: false },
+    { prefix: 'C', content: '', isAnswer: false },
+    { prefix: 'D', content: '', isAnswer: false }
+  ]
+})
+
+const subjectFilter = ref(null)
+const formLoading = ref(false)
+const formRef = ref(null)
+
+const difficultEnum = computed(() => [
+  { key: 1, value: '简单' },
+  { key: 2, value: '中等' },
+  { key: 3, value: '困难' }
+])
+
+const rules = {
+  subjectId: [{ required: true, message: '请选择学科', trigger: 'change' }],
+  difficult: [{ required: true, message: '请选择难度', trigger: 'change' }],
+  score: [{ required: true, message: '请输入分数', trigger: 'blur' }],
+  title: [{ required: true, message: '请输入题干', trigger: 'blur' }],
+  items: [{ validator: (rule, value, callback) => {
+    const hasContent = value.every(item => item.content.trim())
+    const hasAnswer = value.some(item => item.isAnswer)
+    if (!hasContent) {
+      callback(new Error('请填写所有选项内容'))
+    } else if (!hasAnswer) {
+      callback(new Error('请选择正确答案'))
+    } else {
+      callback()
+    }
+  }, trigger: 'blur' }]
+}
+
+const addItem = () => {
+  const prefixes = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  form.items.push({
+    prefix: prefixes[form.items.length],
+    content: '',
+    isAnswer: false
+  })
+}
+
+const removeItem = (index) => {
+  form.items.splice(index, 1)
+  const prefixes = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  form.items.forEach((item, i) => {
+    item.prefix = prefixes[i]
+  })
+}
+
+const submitForm = () => {
+  formRef.value.validate((valid) => {
+    if (valid) {
+      const answerItem = form.items.find(item => item.isAnswer)
+      form.correct = answerItem ? answerItem.prefix : null
+      formLoading.value = true
+      questionApi.edit(form).then(re => {
+        if (re.code === 1) {
+          ElMessage.success(re.message)
+          tagsViewStore.delVisitedView({ path: route.path }).then(() => {
+            router.push('/exam/question/list')
+          })
+        } else {
+          ElMessage.error(re.message)
+          formLoading.value = false
+        }
+      }).catch(() => {
+        formLoading.value = false
+      })
+    }
+  })
+}
+
+const resetForm = () => {
+  const lastId = form.id
+  formRef.value.resetFields()
+  Object.assign(form, {
+    id: null,
+    subjectId: null,
+    questionType: 1,
+    difficult: 1,
+    score: 5,
+    title: '',
+    items: [
+      { prefix: 'A', content: '', isAnswer: false },
+      { prefix: 'B', content: '', isAnswer: false },
+      { prefix: 'C', content: '', isAnswer: false },
+      { prefix: 'D', content: '', isAnswer: false }
+    ]
+  })
+  form.id = lastId
+}
+
+onMounted(() => {
+  examStore.initSubject(() => {
+    subjectFilter.value = examStore.subjects
+  })
+  
+  const id = route.query.id
+  if (id && parseInt(id) !== 0) {
+    formLoading.value = true
+    questionApi.select(id).then(re => {
+      Object.assign(form, re.response)
+      form.items.forEach(item => {
+        item.isAnswer = item.prefix === form.correct
+      })
+      formLoading.value = false
+    })
+  }
+})
+</script>
+
+<style scoped>
+.item-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+</style>

@@ -1,0 +1,135 @@
+# ============================================================================
+# master408v2 .gitignore
+# 原则：① v1 副本隔离(v1-reference/) 永不入仓；
+#       ② 密钥/敏感配置绝不入仓；
+#       ③ 各技术栈构建产物按需忽略，但源码与锁定文件(lock)正常入仓。
+# ============================================================================
+
+# ── v1 只读参考副本 ─────────────────────────────────────────────────────
+# 整个目录永不入仓：内含 v1 的 .git / 明文密钥(02_seed.sql) / 旧 jar / 旧产物
+v1-reference/
+
+# ── 密钥 / 敏感配置（绝不入仓）──────────────────────────────────────────
+.env
+.env.*
+*.env
+**/.env
+# Spring Boot：本地/生产/机密 profile 不入仓；application.yml 作为模板入仓
+**/application-local.yml
+**/application-local.yaml
+**/application-prod.yml
+**/application-prod.yaml
+**/application-secret.yml
+**/secrets/
+*.pem
+*.key
+*.p12
+*.jks
+# v1 含真实 key 的种子数据，若不慎搬到工作区也别进仓
+02_seed.sql
+**/02_seed.sql
+
+# ── Java / Maven / Spring Boot ─────────────────────────────────────────
+target/
+**/target/
+build/
+**/build/
+out/
+**/out/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+hs_err_pid*
+replay_pid*
+# Maven wrapper jar（现代 wrapper 靠 .properties，jar 不需入仓）
+.mvn/wrapper/maven-wrapper.jar
+
+# ── Python（ingestion 边车 / crawler）─────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+*.egg
+# 注意：poetry.lock / uv.lock 是依赖锁定文件，应入仓，故不忽略
+
+# ── Node / Vue3 / Vite（frontend）─────────────────────────────────────
+node_modules/
+**/node_modules/
+.npm/
+.pnpm-store/
+.vite/
+.cache/
+*.local
+
+# ── 构建产物（前端 dist / 通用 build）─────────────────────────────────
+dist/
+**/dist/
+
+# ── IDE ────────────────────────────────────────────────────────────────
+.idea/
+*.iml
+*.ipr
+*.iws
+# .vscode 用「忽略目录内容 + 放行共享文件」的写法（git 否定模式小知识点）
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+nbproject/
+nbactions.xml
+
+# ── 操作系统 ───────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ── 日志 / 运行时 ──────────────────────────────────────────────────────
+*.log
+logs/
+**/logs/
+
+# ── 本地数据 / 数据库快照 / 向量库本地卷（docker-compose 数据目录）─────
+*.db
+*.sqlite
+*.sqlite3
+*.rdb
+dump.rdb
+appendonly.aof
+mysql-data/
+redis-data/
+qdrant-data/
+data-local/
+
+# ── 临时 / 备份 ────────────────────────────────────────────────────────
+*.tmp
+*.bak
+*.orig
+*.rej
+
+# ── 本地运行时根目录（docker-compose 卷 / 下载的工具 / 临时工作区）────────
+# 与上面 mysql-data/ qdrant-data/ 等同义，按本仓库实际目录名补齐
+.data/
+.data-*/
+.tools/
+tmp/
+

@@ -1,0 +1,98 @@
+package com.mindskip.xzs.utility;
+
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
+
+
+/**
+ * @version 3.5.0
+ * @description: The type Json util.
+ * Copyright (C), 2020-2026, 武汉思维跳跃科技有限公司
+ * @date 2021/12/25 9:45
+ */
+public class JsonUtil {
+    private static final ObjectMapper MAPPER = JsonMapper.builder()
+            .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+            .build();
+    private static final Logger logger = LoggerFactory.getLogger(JsonUtil.class);
+
+    /**
+     * To json str string.
+     *
+     * @param <T> the type parameter
+     * @param o   the o
+     * @return the string
+     */
+    public static <T> String toJsonStr(T o) {
+        try {
+            return MAPPER.writeValueAsString(o);
+        } catch (JacksonException e) {
+            logger.error(e.getMessage(), e);
+        }
+        return null;
+    }
+
+    /**
+     * To json object t.
+     *
+     * @param <T>       the type parameter
+     * @param json      the json
+     * @param valueType the value type
+     * @return the t
+     */
+    public static <T> T toJsonObject(String json, Class<T> valueType) {
+        try {
+            return MAPPER.<T>readValue(json, valueType);
+        } catch (JacksonException e) {
+            logger.error(e.getMessage(), e);
+        }
+        return null;
+    }
+
+
+    /**
+     * To json list object list.
+     *
+     * @param <T>       the type parameter
+     * @param json      the json
+     * @param valueType the value type
+     * @return the list
+     */
+    public static <T> List<T> toJsonListObject(String json, Class<T> valueType) {
+        try {
+            JavaType getCollectionType = MAPPER.getTypeFactory().constructParametricType(List.class, valueType);
+            List<T> list = MAPPER.readValue(json, getCollectionType);
+            return list;
+        } catch (JacksonException e) {
+            logger.error(e.getMessage(), e);
+        }
+        return null;
+    }
+
+    /**
+     * To json object t.
+     *
+     * @param <T>       the type parameter
+     * @param stream    the stream
+     * @param valueType the value type
+     * @return the t
+     */
+    public static <T> T toJsonObject(InputStream stream, Class<T> valueType) {
+        try {
+            T object = MAPPER.<T>readValue(stream, valueType);
+            return object;
+        } catch (JacksonException e) {
+            logger.error(e.getMessage(), e);
+        }
+        return null;
+    }
+}

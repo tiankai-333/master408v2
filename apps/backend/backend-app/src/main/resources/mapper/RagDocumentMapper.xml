@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.mindskip.xzs.repository.RagDocumentMapper">
+
+    <resultMap id="ChunkResultMap" type="com.mindskip.xzs.domain.rag.RagChunkRecord">
+        <id column="id" property="id"/>
+        <result column="document_id" property="documentId"/>
+        <result column="chunk_index" property="chunkIndex"/>
+        <result column="title" property="title"/>
+        <result column="content" property="content"/>
+        <result column="content_text" property="contentText"/>
+        <result column="subject_id" property="subjectId"/>
+        <result column="knowledge_point_id" property="knowledgePointId"/>
+        <result column="citation_label" property="citationLabel"/>
+        <result column="source_position" property="sourcePosition"/>
+        <result column="vector_id" property="vectorId"/>
+    </resultMap>
+
+    <insert id="backfillDocumentsFromLegacyKnowledgeBase">
+        INSERT INTO rag_document (
+            document_type, title, summary, subject_id, knowledge_point_id,
+            source_type, source_name, source_ref, permission_scope, version,
+            content_hash, status, legacy_knowledge_base_id, create_user
+        )
+        SELECT
+            'knowledge_base',
+            kb.title,
+            kb.core_concepts,
+            NULL,
+            COALESCE(kp_title.id, kp_sub.id),
+            kb.source_type,
+            kb.source_name,
+            CONCAT('t_ai_knowledge_base:', kb.id),
+            'public',
+            1,
+            COALESCE(kb.content_hash, SHA2(CONCAT_WS('|', kb.id, kb.title, kb.content), 256)),
+            IF(kb.enabled = b'1', 'ready', 'disabled'),
+            kb.id,
+            kb.create_user
+        FROM t_ai_knowledge_base kb
+        LEFT JOIN (
+          SELECT name COLLATE utf8mb4_unicode_ci AS name_key, MIN(id) AS id
+          FROM knowledge_point
+          GROUP BY name COLLATE utf8mb4_unicode_ci
+        ) kp_title ON kp_title.name_key = kb.title COLLATE utf8mb4_unicode_ci
+        LEFT JOIN (
+          SELECT name COLLATE utf8mb4_unicode_ci AS name_key, MIN(id) AS id
+          FROM knowledge_point
+          GROUP BY name COLLATE utf8mb4_unicode_ci
+        ) kp_sub ON kp_sub.name_key = kb.sub_domain COLLATE utf8mb4_unicode_ci
+        WHERE kb.deleted = b'0'
+          AND NOT EXISTS (
+              SELECT 1 FROM rag_document rd WHERE rd.legacy_knowledge_base_id = kb.id
+          )
+    </insert>
+
+    <insert id="backfillChunksFromLegacyKnowledgeBase">
+        INSERT INTO rag_chunk (
+            document_id, chunk_index, content, content_text, token_count,
+            subject_id, knowledge_point_id, citation_label, source_position,
+            content_hash, enabled
+        )
+        SELECT
+            rd.id,
+            COALESCE(kb.chunk_index, 0),
+            kb.content,
+            kb.content,
+            CHAR_LENGTH(kb.content),
+            rd.subject_id,
+            rd.knowledge_point_id,
+            kb.title,
+            rd.source_ref,
+            COALESCE(kb.content_hash, SHA2(CONCAT_WS('|', kb.id, kb.title, kb.content), 256)),
+            kb.enabled
+        FROM rag_document rd
+        JOIN t_ai_knowledge_base kb ON kb.id = rd.legacy_knowledge_base_id
+        WHERE kb.deleted = b'0'
+          AND kb.content IS NOT NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM rag_chunk rc
+              WHERE rc.document_id = rd.id AND rc.chunk_index = COALESCE(kb.chunk_index, 0)
+          )
+    </insert>
+
+    <select id="selectIndexableChunks" resultMap="ChunkResultMap">
+        SELECT
+            rc.id, rc.document_id, rc.chunk_index, rd.title, rc.content, rc.content_text,
+            rc.subject_id, rc.knowledge_point_id, rc.citation_label, rc.source_position,
+            CAST(rc.id AS CHAR) AS vector_id
+        FROM rag_chunk rc
+        JOIN rag_document rd ON rd.id = rc.document_id
+        LEFT JOIN rag_embedding re
+          ON re.chunk_id = rc.id
+         AND re.vector_store = 'qdrant'
+         AND re.embedding_model = #{embeddingModel}
+         AND re.collection_name = #{collectionName}
+         AND re.status = 'indexed'
+        WHERE rc.enabled = b'1'
+          AND rd.status = 'ready'
+          AND (#{force} = TRUE OR re.id IS NULL)
+          AND rc.id &gt; #{afterId}
+        ORDER BY rc.id ASC
+        LIMIT #{limit}
+    </select>
+
+    <update id="refreshQuestionChunkText">
+        UPDATE rag_chunk rc
+        JOIN rag_document rd ON rd.id = rc.document_id AND rd.document_type = 'question'
+        JOIN t_question q
+          ON q.id = CAST(SUBSTRING_INDEX(rd.source_ref, ':', -1) AS UNSIGNED)
+        JOIN question_content qc ON qc.question_id = q.id AND qc.is_current = b'1'
+        SET rc.content_text = CONCAT_WS('\n',
+                CONCAT('题干：', COALESCE(qc.title_text, '')),
+                CONCAT('答案：', COALESCE(qc.correct_answer, '')),
+                CONCAT('解析：', COALESCE(qc.analysis_text, ''))),
+            rc.token_count = CHAR_LENGTH(CONCAT_WS('\n',
+                COALESCE(qc.title_text, ''), COALESCE(qc.correct_answer, ''),
+                COALESCE(qc.analysis_text, ''))) / 3,
+            rc.content_hash = SHA2(CONCAT_WS('|', q.id, qc.source_hash), 256)
+        WHERE rc.content_hash &lt;&gt; SHA2(CONCAT_WS('|', q.id, qc.source_hash), 256)
+    </update>
+
+    <select id="selectOversizedKnowledgeChunks" resultMap="ChunkResultMap">
+        SELECT
+            rc.id, rc.document_id, rc.chunk_index, rd.title, rc.content, rc.content_text,
+            rc.subject_id, rc.knowledge_point_id, rc.citation_label, rc.source_position
+        FROM rag_chunk rc
+        JOIN rag_document rd ON rd.id = rc.document_id
+        WHERE rd.document_type = 'knowledge_base'
+          AND rc.enabled = b'1'
+          AND CHAR_LENGTH(COALESCE(rc.content_text, rc.content)) &gt; #{maxChars}
+        ORDER BY rc.id
+    </select>
+
+    <update id="updateChunkContent">
+        UPDATE rag_chunk
+        SET content = #{content},
+            content_text = #{content},
+            token_count = #{tokenCount},
+            content_hash = #{contentHash}
+        WHERE id = #{id}
+    </update>
+
+    <insert id="insertSplitChunk" parameterType="com.mindskip.xzs.domain.rag.RagChunkRecord"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO rag_chunk (
+            document_id, chunk_index, content, content_text, token_count,
+            subject_id, knowledge_point_id, citation_label, source_position,
+            content_hash, enabled
+        ) VALUES (
+            #{documentId}, #{chunkIndex}, #{content}, #{contentText},
+            CHAR_LENGTH(#{contentText}) / 3,
+            #{subjectId}, #{knowledgePointId}, #{citationLabel}, #{sourcePosition},
+            SHA2(#{contentText}, 256), b'1'
+        )
+    </insert>
+
+    <insert id="backfillDocumentsFromQuestions">
+        INSERT INTO rag_document (
+            document_type, title, summary, subject_id, knowledge_point_id,
+            source_type, source_name, source_ref, permission_scope, version,
+            content_hash, status, create_user
+        )
+        SELECT
+            'question',
+            CONCAT('题目 #', q.id),
+            NULL,
+            q.subject_id,
+            NULL,
+            'exam',
+            CONCAT('subject_', q.subject_id),
+            CONCAT('t_question:', q.id),
+            'public',
+            1,
+            SHA2(CONCAT_WS('|', q.id, tc.content), 256),
+            'ready',
+            q.create_user
+        FROM t_question q
+        JOIN t_text_content tc ON q.info_text_content_id = tc.id
+        WHERE q.deleted = 0
+          AND tc.content IS NOT NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM rag_document rd WHERE rd.source_ref = CONCAT('t_question:', q.id)
+          )
+    </insert>
+
+    <insert id="backfillChunksFromQuestions">
+        INSERT INTO rag_chunk (
+            document_id, chunk_index, content, content_text, token_count,
+            subject_id, knowledge_point_id, citation_label, source_position,
+            content_hash, enabled
+        )
+        SELECT
+            rd.id,
+            0,
+            tc.content,
+            tc.content,
+            CHAR_LENGTH(tc.content),
+            q.subject_id,
+            NULL,
+            CONCAT('题目 #', q.id),
+            CONCAT('t_question:', q.id),
+            SHA2(CONCAT_WS('|', q.id, tc.content), 256),
+            b'1'
+        FROM rag_document rd
+        JOIN t_question q ON rd.source_ref = CONCAT('t_question:', q.id)
+        JOIN t_text_content tc ON q.info_text_content_id = tc.id
+        WHERE rd.document_type = 'question'
+          AND tc.content IS NOT NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM rag_chunk rc WHERE rc.document_id = rd.id AND rc.chunk_index = 0
+          )
+    </insert>
+
+    <insert id="upsertEmbeddingMetadata">
+        INSERT INTO rag_embedding (
+            chunk_id, embedding_model, embedding_dimension, vector_store,
+            collection_name, vector_id, payload_hash, indexed_at, status, error_message
+        ) VALUES (
+            #{chunkId}, #{embeddingModel}, #{embeddingDimension}, #{vectorStore},
+            #{collectionName}, #{vectorId},
+            SHA2(CONCAT_WS('|', #{chunkId}, #{embeddingModel}, #{collectionName}, #{vectorId}), 256),
+            IF(#{status} = 'indexed', NOW(), NULL),
+            #{status}, #{errorMessage}
+        )
+        ON DUPLICATE KEY UPDATE
+            embedding_dimension = VALUES(embedding_dimension),
+            vector_store = VALUES(vector_store),
+            vector_id = VALUES(vector_id),
+            payload_hash = VALUES(payload_hash),
+            indexed_at = VALUES(indexed_at),
+            status = VALUES(status),
+            error_message = VALUES(error_message),
+            update_time = NOW()
+    </insert>
+</mapper>

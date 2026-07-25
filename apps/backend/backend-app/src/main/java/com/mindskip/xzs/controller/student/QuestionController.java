@@ -1,0 +1,164 @@
+package com.mindskip.xzs.controller.student;
+
+import com.mindskip.xzs.ai.AnalysisService;
+import com.mindskip.xzs.ai.PromptTemplate;
+import com.mindskip.xzs.base.BaseApiController;
+import com.mindskip.xzs.base.RestResponse;
+import com.mindskip.xzs.service.QuestionService;
+import com.mindskip.xzs.utility.Utf8SseEventWriter;
+import jakarta.servlet.http.HttpServletResponse;
+import com.mindskip.xzs.viewmodel.admin.question.QuestionEditRequestVM;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import jakarta.servlet.http.HttpServletRequest;
+import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
+
+@RestController("StudentQuestionController")
+@RequestMapping(value = "/api/student/question")
+public class QuestionController extends BaseApiController {
+
+    private static final Logger logger = LoggerFactory.getLogger(QuestionController.class);
+
+    private final QuestionService questionService;
+    private final AnalysisService analysisService;
+
+    @Autowired
+    public QuestionController(QuestionService questionService, AnalysisService analysisService) {
+        this.questionService = questionService;
+        this.analysisService = analysisService;
+    }
+
+    @RequestMapping(value = "/select/{id}", method = RequestMethod.POST)
+    public RestResponse<QuestionEditRequestVM> select(@PathVariable Integer id) {
+        QuestionEditRequestVM questionVM = questionService.getQuestionEditRequestVM(id);
+        if (questionVM == null) {
+            return RestResponse.fail(2, "题目不存在或已被删除");
+        }
+        return RestResponse.ok(questionVM);
+    }
+
+    @RequestMapping(value = "/analyze-image", method = RequestMethod.POST)
+    public RestResponse analyzeImageQuestion(@RequestParam(value = "file", required = false) MultipartFile file) {
+        AnalysisService.setCurrentUserId(getCurrentUser().getId());
+        try {
+            if (file == null || file.isEmpty()) {
+                return RestResponse.fail(2, "请选择要识别的图片");
+            }
+
+            String result = questionService.analyzeImageQuestion(file);
+            return RestResponse.ok(result);
+        } catch (Exception e) {
+            return RestResponse.fail(2, "图片识别失败：" + e.getMessage());
+        } finally {
+            AnalysisService.clearCurrentUserId();
+        }
+    }
+
+    @RequestMapping(value = "/analyze-question", method = RequestMethod.POST)
+    public RestResponse analyzeQuestion(@RequestBody java.util.Map<String, String> requestData) {
+        AnalysisService.setCurrentUserId(getCurrentUser().getId());
+        try {
+            String questionType = requestData.get("questionType");
+            String questionContent = requestData.get("questionContent");
+            String options = requestData.get("options");
+            String correctAnswer = requestData.get("correctAnswer");
+            String style = requestData.getOrDefault("style", "default");
+            
+            logger.info("开始分析题目 - 类型: {}, 风格: {}, 内容长度: {}", questionType, style, questionContent != null ? questionContent.length() : 0);
+            
+            if (questionContent == null || questionContent.trim().isEmpty()) {
+                logger.warn("题目内容为空");
+                return RestResponse.fail(2, "题目内容不能为空");
+            }
+            
+            StringBuilder questionFull = new StringBuilder();
+            questionFull.append("题目类型：").append(questionType).append("\n");
+            questionFull.append("题目内容：").append(questionContent).append("\n");
+            if (options != null && !options.trim().isEmpty()) {
+                questionFull.append("选项：\n").append(options).append("\n");
+            }
+            if (correctAnswer != null && !correctAnswer.trim().isEmpty()) {
+                questionFull.append("正确答案：").append(correctAnswer).append("\n");
+            }
+            
+            String result = analysisService.analyzeWithAI(style, questionFull.toString(), null);
+            
+            if (result == null || result.trim().isEmpty()) {
+                logger.warn("AI返回结果为空");
+                return RestResponse.fail(2, "AI分析结果为空，请稍后重试");
+            }
+            
+            logger.info("题目分析完成 - 风格: {}, 结果长度: {}", style, result.length());
+            logger.debug("题目分析结果: {}", result);
+            
+            return RestResponse.ok(result);
+        } catch (Exception e) {
+            logger.error("题目分析失败", e);
+            return RestResponse.fail(2, "题目分析失败：" + e.getMessage());
+        } finally {
+            AnalysisService.clearCurrentUserId();
+        }
+    }
+
+    @RequestMapping(value = "/analyze-question-stream", method = RequestMethod.POST, produces = "text/event-stream;charset=UTF-8")
+    public SseEmitter analyzeQuestionStream(@RequestBody java.util.Map<String, String> requestData,
+                                            HttpServletResponse response) {
+        Utf8SseEventWriter.prepareResponse(response);
+        SseEmitter emitter = new SseEmitter(600000L);
+        final Integer userId = getCurrentUser().getId();
+        CompletableFuture.runAsync(() -> {
+            AnalysisService.setCurrentUserId(userId);
+            try {
+                String questionType = requestData.get("questionType");
+                String questionContent = requestData.get("questionContent");
+                String options = requestData.get("options");
+                String correctAnswer = requestData.get("correctAnswer");
+                String style = requestData.getOrDefault("style", "default");
+
+                if (questionContent == null || questionContent.trim().isEmpty()) {
+                    sendEvent(emitter, "error", "题目内容不能为空");
+                    emitter.complete();
+                    return;
+                }
+
+                StringBuilder questionFull = new StringBuilder();
+                questionFull.append("题目类型：").append(questionType).append("\n");
+                questionFull.append("题目内容：").append(questionContent).append("\n");
+                if (options != null && !options.trim().isEmpty()) {
+                    questionFull.append("选项：\n").append(options).append("\n");
+                }
+                if (correctAnswer != null && !correctAnswer.trim().isEmpty()) {
+                    questionFull.append("正确答案：").append(correctAnswer).append("\n");
+                }
+
+                analysisService.analyzeWithAIStream(style, questionFull.toString(), null, null, "chat", token ->
+                    sendEvent(emitter, "chunk", token)
+                );
+                sendEvent(emitter, "done", "ok");
+                emitter.complete();
+            } catch (Exception e) {
+                logger.error("流式题目分析失败", e);
+                try {
+                    sendEvent(emitter, "error", "题目分析失败：" + e.getMessage());
+                } catch (Exception ignored) {
+                }
+                emitter.completeWithError(e);
+            } finally {
+                AnalysisService.clearCurrentUserId();
+            }
+        });
+        return emitter;
+    }
+
+    private void sendEvent(SseEmitter emitter, String name, String data) throws IOException {
+        Utf8SseEventWriter.send(emitter, name, data);
+    }
+
+}
