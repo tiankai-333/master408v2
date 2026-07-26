@@ -273,12 +273,24 @@ const constantRoutes = [
   {
     path: '/ai',
     component: Layout,
+    name: 'AiOpsPage',
+    meta: {
+      title: 'AI 运维中心',
+      icon: 'skill'
+    },
+    alwaysShow: true,
     children: [
       {
         path: 'config',
         component: () => import('@/views/ai/config.vue'),
         name: 'AiConfigPage',
         meta: { title: '密钥与用量', icon: 'skill', noCache: true }
+      },
+      {
+        path: 'prompt-studio',
+        component: () => import('@/views/ai/prompt-studio.vue'),
+        name: 'AiPromptStudioPage',
+        meta: { title: 'Prompt Studio', icon: 'edit', noCache: true }
       }
     ]
   },

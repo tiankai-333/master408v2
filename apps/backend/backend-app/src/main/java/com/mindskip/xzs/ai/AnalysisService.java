@@ -7,6 +7,11 @@ import com.mindskip.xzs.service.AiUserKeyService;
 import com.mindskip.xzs.domain.ai.AiUsageLog;
 import com.mindskip.xzs.repository.AiUsageLogMapper;
 import com.mindskip.xzs.service.AiProviderConfigService;
+import com.mindskip.xzs.ai.prompt.PromptContext;
+import com.mindskip.xzs.ai.prompt.PromptRef;
+import com.mindskip.xzs.ai.prompt.PromptRegistry;
+import com.mindskip.xzs.ai.prompt.ResolvedPrompt;
+import com.mindskip.xzs.ai.client.AiAnalysisRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +54,9 @@ public class AnalysisService {
 
     @Autowired
     private AiUserKeyService aiUserKeyService;
+
+    @Autowired
+    private PromptRegistry promptRegistry;
 
     @Value("${ai.api.type:glm}")
     private String aiApiType;
@@ -104,6 +112,79 @@ public class AnalysisService {
 
     public PromptTemplate getTemplate(String style) {
         return promptTemplates.getOrDefault(style, promptTemplates.get("default"));
+    }
+
+    /**
+     * 运行时解析分析型 Prompt：优先走 {@link PromptRegistry}（DB 已发布版本，记录 versionId/releaseId），
+     * 未命中则回退到启动加载的 JSON 模板（ref=unknown），保证「DB 异常不影响已发布 Prompt 读取」。
+     * applyWorkbenchOverride 控制是否套用 workbench+default 的 systemPrompt 覆盖（仅主分析路径套用，
+     * analyzeWithCustomAI 历史上不套用，保持不变）。
+     */
+    public ResolvedAnalysisPrompt resolveAnalysisPrompt(String style, String taskType,
+                                                        PromptContext ctx, boolean applyWorkbenchOverride) {
+        String promptKey = "analysis." + style;
+        String systemPrompt;
+        String userPromptTemplate;
+        PromptRef ref;
+
+        ResolvedPrompt resolved = promptRegistry.resolve(promptKey, ctx);
+        if (resolved != null && resolved.systemPrompt() != null) {
+            systemPrompt = resolved.systemPrompt();
+            userPromptTemplate = resolved.userPromptTemplate();
+            ref = resolved.toRef();
+            if (userPromptTemplate == null) {
+                // 版本只配了 system；user 模板回退 JSON，避免 formatUserPrompt NPE
+                userPromptTemplate = getTemplate(style).getUserPromptTemplate();
+            }
+        } else {
+            PromptTemplate t = getTemplate(style);
+            systemPrompt = t.getSystemPrompt();
+            userPromptTemplate = t.getUserPromptTemplate();
+            ref = PromptRef.unknown(promptKey);
+        }
+
+        // 逐字保留 workbench+default 覆盖（主路径）
+        if (applyWorkbenchOverride && isWorkbenchTask(taskType) && "default".equals(style)) {
+            systemPrompt = "你是一个有帮助的AI助手。";
+        }
+
+        PromptTemplate tpl = new PromptTemplate();
+        tpl.setSystemPrompt(systemPrompt);
+        tpl.setUserPromptTemplate(userPromptTemplate);
+        return new ResolvedAnalysisPrompt(ref, tpl, systemPrompt);
+    }
+
+    public ResolvedAnalysisPrompt resolveAnalysisPrompt(String style, String taskType, PromptContext ctx) {
+        return resolveAnalysisPrompt(style, taskType, ctx, true);
+    }
+
+    /**
+     * 构建一次分析请求的输入（systemPrompt + userPrompt + promptRef），不调用 LLM。
+     * Spring 路径（AiAnalysisGateway）使用；统一解析点，避免在 gateway 重复 workbench 分支。
+     * 草稿测试（PromptOps Playground）也复用此方法。
+     */
+    public AiAnalysisRequest buildAnalysisRequest(String style, String question, String knowledgePoints,
+                                                  String referenceDocs, String taskType, String conversationId) {
+        ResolvedAnalysisPrompt rap = resolveAnalysisPrompt(
+                style, taskType, PromptContext.of(currentUser.get(), conversationId));
+        String userPrompt = isWorkbenchTask(taskType)
+                ? generatePrompt(style, question, knowledgePoints, referenceDocs, taskType)
+                : rap.formatUserPrompt(question, knowledgePoints, referenceDocs);
+        return new AiAnalysisRequest(rap.systemPrompt(), userPrompt, conversationId, rap.ref());
+    }
+
+    /**
+     * Playground 一次性测试：用任意 system/user 文案调用 LLM（用于测试某个版本内容，绝不经过 active release）。
+     * 记录一条 prompt_key="test" 的 usage log。
+     */
+    public String runPromptTest(String systemPrompt, String userPrompt) throws Exception {
+        PromptRef ref = PromptRef.unknown("test");
+        ResolvedProvider rp = resolveProvider();
+        if (rp != null) {
+            currentKeySource.set(rp.source);
+            return callAiApi(systemPrompt, userPrompt, rp.type, rp.key, rp.url, rp.model, ref);
+        }
+        return callAiApi(systemPrompt, userPrompt, aiApiType, aiApiKey, aiApiUrl, "glm-4.5-air", ref);
     }
 
     public String generatePrompt(String style, String question, String knowledgePoints) {
@@ -289,32 +370,34 @@ public class AnalysisService {
     }
 
     public String analyzeWithAI(String style, String question, String knowledgePoints, String referenceDocs, String taskType) throws Exception {
-        PromptTemplate template = getTemplate(style);
-        String userPrompt = generatePrompt(style, question, knowledgePoints, referenceDocs, taskType);
-        String systemPrompt = isWorkbenchTask(taskType) && "default".equals(style)
-            ? "你是一个有帮助的AI助手。"
-            : template.getSystemPrompt();
+        ResolvedAnalysisPrompt rap = resolveAnalysisPrompt(style, taskType, PromptContext.of(currentUser.get(), null));
+        String userPrompt = isWorkbenchTask(taskType)
+            ? generatePrompt(style, question, knowledgePoints, referenceDocs, taskType)
+            : rap.formatUserPrompt(question, knowledgePoints, referenceDocs);
+        String systemPrompt = rap.systemPrompt();
+        PromptRef ref = rap.ref();
         ResolvedProvider rp = resolveProvider();
         if (rp != null) {
             currentKeySource.set(rp.source);
-            return callAiApi(systemPrompt, userPrompt, rp.type, rp.key, rp.url, rp.model);
+            return callAiApi(systemPrompt, userPrompt, rp.type, rp.key, rp.url, rp.model, ref);
         }
-        return callAiApi(systemPrompt, userPrompt, aiApiType, aiApiKey, aiApiUrl, "glm-4.5-air");
+        return callAiApi(systemPrompt, userPrompt, aiApiType, aiApiKey, aiApiUrl, "glm-4.5-air", ref);
     }
 
     public String analyzeWithAIStream(String style, String question, String knowledgePoints, String referenceDocs,
                                       String taskType, StreamTokenConsumer tokenConsumer) throws Exception {
-        PromptTemplate template = getTemplate(style);
-        String userPrompt = generatePrompt(style, question, knowledgePoints, referenceDocs, taskType);
-        String systemPrompt = isWorkbenchTask(taskType) && "default".equals(style)
-            ? "你是一个有帮助的AI助手。"
-            : template.getSystemPrompt();
+        ResolvedAnalysisPrompt rap = resolveAnalysisPrompt(style, taskType, PromptContext.of(currentUser.get(), null));
+        String userPrompt = isWorkbenchTask(taskType)
+            ? generatePrompt(style, question, knowledgePoints, referenceDocs, taskType)
+            : rap.formatUserPrompt(question, knowledgePoints, referenceDocs);
+        String systemPrompt = rap.systemPrompt();
+        PromptRef ref = rap.ref();
         ResolvedProvider rp = resolveProvider();
         if (rp != null) {
             currentKeySource.set(rp.source);
-            return callAiApiStream(systemPrompt, userPrompt, rp.type, rp.key, rp.url, rp.model, tokenConsumer);
+            return callAiApiStream(systemPrompt, userPrompt, rp.type, rp.key, rp.url, rp.model, tokenConsumer, ref);
         }
-        return callAiApiStream(systemPrompt, userPrompt, aiApiType, aiApiKey, aiApiUrl, "glm-4.5-air", tokenConsumer);
+        return callAiApiStream(systemPrompt, userPrompt, aiApiType, aiApiKey, aiApiUrl, "glm-4.5-air", tokenConsumer, ref);
     }
 
     private static class ResolvedProvider {
@@ -400,21 +483,23 @@ public class AnalysisService {
         return analyzeWithCustomAI(aiType, apiKey, apiUrl, model, style, question, knowledgePoints, referenceDocs, "chat");
     }
 
-    public String analyzeWithCustomAI(String aiType, String apiKey, String apiUrl, String model, 
+    public String analyzeWithCustomAI(String aiType, String apiKey, String apiUrl, String model,
                                       String style, String question, String knowledgePoints, String referenceDocs, String taskType) throws Exception {
-        PromptTemplate template = getTemplate(style);
-        String userPrompt = generatePrompt(style, question, knowledgePoints, referenceDocs, taskType);
-        String systemPrompt = template.getSystemPrompt();
-        return callAiApi(systemPrompt, userPrompt, aiType, apiKey, apiUrl, model);
+        ResolvedAnalysisPrompt rap = resolveAnalysisPrompt(style, taskType, PromptContext.of(currentUser.get(), null), false);
+        String userPrompt = isWorkbenchTask(taskType)
+            ? generatePrompt(style, question, knowledgePoints, referenceDocs, taskType)
+            : rap.formatUserPrompt(question, knowledgePoints, referenceDocs);
+        return callAiApi(rap.systemPrompt(), userPrompt, aiType, apiKey, apiUrl, model, rap.ref());
     }
 
     public String analyzeWithCustomAIStream(String aiType, String apiKey, String apiUrl, String model,
                                             String style, String question, String knowledgePoints, String referenceDocs,
                                             String taskType, StreamTokenConsumer tokenConsumer) throws Exception {
-        PromptTemplate template = getTemplate(style);
-        String userPrompt = generatePrompt(style, question, knowledgePoints, referenceDocs, taskType);
-        String systemPrompt = template.getSystemPrompt();
-        return callAiApiStream(systemPrompt, userPrompt, aiType, apiKey, apiUrl, model, tokenConsumer);
+        ResolvedAnalysisPrompt rap = resolveAnalysisPrompt(style, taskType, PromptContext.of(currentUser.get(), null), false);
+        String userPrompt = isWorkbenchTask(taskType)
+            ? generatePrompt(style, question, knowledgePoints, referenceDocs, taskType)
+            : rap.formatUserPrompt(question, knowledgePoints, referenceDocs);
+        return callAiApiStream(rap.systemPrompt(), userPrompt, aiType, apiKey, apiUrl, model, tokenConsumer, rap.ref());
     }
 
     private boolean isWorkbenchTask(String taskType) {
@@ -527,8 +612,8 @@ public class AnalysisService {
         return "常规解析，结构清楚、考点明确";
     }
 
-    private String callAiApi(String systemPrompt, String userPrompt, String aiType, 
-                            String apiKey, String apiUrl, String model) throws Exception {
+    private String callAiApi(String systemPrompt, String userPrompt, String aiType,
+                            String apiKey, String apiUrl, String model, PromptRef ref) throws Exception {
         long startTime = System.currentTimeMillis();
         org.springframework.http.client.SimpleClientHttpRequestFactory factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(60000);
@@ -608,20 +693,20 @@ public class AnalysisService {
             int outputTokens = usageNode.path("completion_tokens").asInt(0);
             int cacheHitTokens = usageNode.path("prompt_cache_hit_tokens").asInt(0);
             saveUsageLog(aiType, model, userPrompt, systemPrompt, cleanedResult, tokensUsed,
-                    inputTokens, outputTokens, cacheHitTokens, (int) (System.currentTimeMillis() - startTime), true, null);
+                    inputTokens, outputTokens, cacheHitTokens, (int) (System.currentTimeMillis() - startTime), true, null, ref);
             return cleanedResult;
         } catch (Exception e) {
             System.err.println("AI API调用失败: " + e.getMessage());
             saveUsageLog(aiType, model, userPrompt, systemPrompt, null, estimateTokens(systemPrompt, userPrompt, null),
                     0, 0, 0,
-                    (int) (System.currentTimeMillis() - startTime), false, e.getMessage());
+                    (int) (System.currentTimeMillis() - startTime), false, e.getMessage(), ref);
             throw new Exception("AI分析失败: " + e.getMessage(), e);
         }
     }
 
     private String callAiApiStream(String systemPrompt, String userPrompt, String aiType,
                                    String apiKey, String apiUrl, String model,
-                                   StreamTokenConsumer tokenConsumer) throws Exception {
+                                   StreamTokenConsumer tokenConsumer, PromptRef ref) throws Exception {
         long startTime = System.currentTimeMillis();
         String resolvedModel = model != null && !model.isEmpty() ? model : ("glm".equals(aiType) ? "glm-4.5-air" : "gpt-4o");
         Map<String, Object> requestBody = new HashMap<>();
@@ -694,12 +779,12 @@ public class AnalysisService {
             int total = estimateTokens(systemPrompt, userPrompt, result);
             int out = estimateTokens(null, null, result);
             saveUsageLog(aiType, resolvedModel, userPrompt, systemPrompt, result, total,
-                total - out, out, 0, (int) (System.currentTimeMillis() - startTime), true, null);
+                total - out, out, 0, (int) (System.currentTimeMillis() - startTime), true, null, ref);
             return result;
         } catch (Exception e) {
             int total = estimateTokens(systemPrompt, userPrompt, fullResponse.toString());
             saveUsageLog(aiType, resolvedModel, userPrompt, systemPrompt, fullResponse.length() == 0 ? null : fullResponse.toString(),
-                total, 0, 0, 0, (int) (System.currentTimeMillis() - startTime), false, e.getMessage());
+                total, 0, 0, 0, (int) (System.currentTimeMillis() - startTime), false, e.getMessage(), ref);
             throw new Exception("AI流式分析失败: " + e.getMessage(), e);
         } finally {
             if (connection != null) {
@@ -756,21 +841,22 @@ public class AnalysisService {
 
     private void saveUsageLog(String aiType, String model, String question, String prompt, String response,
                               Integer tokensUsed, Integer inputTokens, Integer outputTokens, Integer cacheHitTokens,
-                              Integer durationMs, Boolean success, String errorMessage) {
+                              Integer durationMs, Boolean success, String errorMessage, PromptRef ref) {
         saveUsageLog(aiType, model, "runtime", question, prompt, response,
-                tokensUsed, inputTokens, outputTokens, cacheHitTokens, durationMs, success, errorMessage);
+                tokensUsed, inputTokens, outputTokens, cacheHitTokens, durationMs, success, errorMessage, ref);
     }
 
     private void saveVisionUsageLog(String aiType, String model, String question, String prompt, String response,
                                      Integer tokensUsed, Integer inputTokens, Integer outputTokens, Integer cacheHitTokens,
                                      Integer durationMs, Boolean success, String errorMessage) {
         saveUsageLog(aiType, model, "vision", question, prompt, response,
-                tokensUsed, inputTokens, outputTokens, cacheHitTokens, durationMs, success, errorMessage);
+                tokensUsed, inputTokens, outputTokens, cacheHitTokens, durationMs, success, errorMessage,
+                PromptRef.unknown("vision.ocr"));
     }
 
     private void saveUsageLog(String aiType, String model, String style, String question, String prompt, String response,
                               Integer tokensUsed, Integer inputTokens, Integer outputTokens, Integer cacheHitTokens,
-                              Integer durationMs, Boolean success, String errorMessage) {
+                              Integer durationMs, Boolean success, String errorMessage, PromptRef ref) {
         try {
             AiUsageLog log = new AiUsageLog();
             log.setStyle(style);
@@ -791,6 +877,11 @@ public class AnalysisService {
             log.setErrorMessage(limitText(errorMessage, 1000));
             log.setUserId(currentUser.get());
             log.setKeySource(currentKeySource.get());
+            if (ref != null) {
+                log.setPromptKey(ref.promptKey());
+                log.setPromptVersionId(ref.versionId());
+                log.setPromptReleaseId(ref.releaseId());
+            }
             log.setCreateTime(new Date());
             aiUsageLogMapper.insert(log);
         } catch (Exception logError) {

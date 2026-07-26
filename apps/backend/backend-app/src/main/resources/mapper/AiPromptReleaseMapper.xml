@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.mindskip.xzs.repository.AiPromptReleaseMapper">
+
+    <resultMap id="BaseResultMap" type="com.mindskip.xzs.domain.ai.AiPromptRelease">
+        <id column="id" property="id"/>
+        <result column="definition_id" property="definitionId"/>
+        <result column="environment" property="environment"/>
+        <result column="stable_version_id" property="stableVersionId"/>
+        <result column="canary_version_id" property="canaryVersionId"/>
+        <result column="canary_percent" property="canaryPercent"/>
+        <result column="status" property="status"/>
+        <result column="released_by" property="releasedBy"/>
+        <result column="release_time" property="releaseTime"/>
+    </resultMap>
+
+    <sql id="cols">id, definition_id, environment, stable_version_id, canary_version_id,
+        canary_percent, status, released_by, release_time</sql>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="cols"/> FROM ai_prompt_release
+    </select>
+
+    <select id="selectByDefinitionAndEnv" resultMap="BaseResultMap">
+        SELECT <include refid="cols"/> FROM ai_prompt_release
+        WHERE definition_id = #{definitionId} AND environment = #{environment}
+    </select>
+
+    <insert id="insert" parameterType="com.mindskip.xzs.domain.ai.AiPromptRelease" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_prompt_release (definition_id, environment, stable_version_id, canary_version_id,
+            canary_percent, status, released_by)
+        VALUES (#{definitionId}, #{environment}, #{stableVersionId}, #{canaryVersionId},
+            #{canaryPercent}, #{status}, #{releasedBy})
+    </insert>
+
+    <update id="update" parameterType="com.mindskip.xzs.domain.ai.AiPromptRelease">
+        UPDATE ai_prompt_release SET
+            stable_version_id = #{stableVersionId},
+            canary_version_id = #{canaryVersionId},
+            canary_percent = #{canaryPercent},
+            status = #{status},
+            released_by = #{releasedBy},
+            release_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+</mapper>

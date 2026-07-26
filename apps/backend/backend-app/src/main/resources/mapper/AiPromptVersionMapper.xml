@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.mindskip.xzs.repository.AiPromptVersionMapper">
+
+    <resultMap id="BaseResultMap" type="com.mindskip.xzs.domain.ai.AiPromptVersion">
+        <id column="id" property="id"/>
+        <result column="definition_id" property="definitionId"/>
+        <result column="version_no" property="versionNo"/>
+        <result column="system_prompt" property="systemPrompt"/>
+        <result column="user_prompt_template" property="userPromptTemplate"/>
+        <result column="variables_json" property="variablesJson"/>
+        <result column="model_params_json" property="modelParamsJson"/>
+        <result column="status" property="status"/>
+        <result column="change_reason" property="changeReason"/>
+        <result column="risk_note" property="riskNote"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="created_time" property="createdTime"/>
+        <result column="approved_by" property="approvedBy"/>
+        <result column="approved_time" property="approvedTime"/>
+        <result column="approve_comment" property="approveComment"/>
+    </resultMap>
+
+    <sql id="cols">id, definition_id, version_no, system_prompt, user_prompt_template, variables_json,
+        model_params_json, status, change_reason, risk_note, created_by, created_time,
+        approved_by, approved_time, approve_comment</sql>
+
+    <select id="selectByDefinitionId" resultMap="BaseResultMap">
+        SELECT <include refid="cols"/> FROM ai_prompt_version
+        WHERE definition_id = #{definitionId} ORDER BY version_no DESC
+    </select>
+
+    <select id="selectByIds" resultMap="BaseResultMap">
+        SELECT <include refid="cols"/> FROM ai_prompt_version WHERE id IN
+        <foreach collection="ids" item="vId" open="(" separator="," close=")">#{vId}</foreach>
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="cols"/> FROM ai_prompt_version WHERE id = #{id}
+    </select>
+
+    <select id="selectMaxVersionNo" resultType="java.lang.Integer">
+        SELECT MAX(version_no) FROM ai_prompt_version WHERE definition_id = #{definitionId}
+    </select>
+
+    <insert id="insert" parameterType="com.mindskip.xzs.domain.ai.AiPromptVersion" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_prompt_version (definition_id, version_no, system_prompt, user_prompt_template,
+            variables_json, model_params_json, status, change_reason, risk_note, created_by)
+        VALUES (#{definitionId}, #{versionNo}, #{systemPrompt}, #{userPromptTemplate},
+            #{variablesJson}, #{modelParamsJson}, #{status}, #{changeReason}, #{riskNote}, #{createdBy})
+    </insert>
+
+    <update id="updateStatus">
+        UPDATE ai_prompt_version SET status = #{status} WHERE id = #{id}
+    </update>
+
+    <update id="updateContent" parameterType="com.mindskip.xzs.domain.ai.AiPromptVersion">
+        UPDATE ai_prompt_version SET
+            system_prompt = #{systemPrompt},
+            user_prompt_template = #{userPromptTemplate},
+            variables_json = #{variablesJson},
+            model_params_json = #{modelParamsJson},
+            change_reason = #{changeReason},
+            risk_note = #{riskNote}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateApproval">
+        UPDATE ai_prompt_version SET
+            status = #{status},
+            approved_by = #{approvedBy},
+            approved_time = NOW(),
+            approve_comment = #{approveComment}
+        WHERE id = #{id}
+    </update>
+
+</mapper>

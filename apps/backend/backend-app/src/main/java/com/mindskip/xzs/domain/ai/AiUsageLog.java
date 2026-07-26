@@ -6,6 +6,10 @@ public class AiUsageLog {
     private Integer id;
     private Integer userId;
     private String keySource;
+    /** Prompt 控制平面关联：本次响应用了哪个 prompt_key / 版本 / 发布 */
+    private String promptKey;
+    private Long promptVersionId;
+    private Long promptReleaseId;
     private Integer templateId;
     private String style;
     private String aiType;
@@ -50,6 +54,30 @@ public class AiUsageLog {
 
     public void setKeySource(String keySource) {
         this.keySource = keySource;
+    }
+
+    public String getPromptKey() {
+        return promptKey;
+    }
+
+    public void setPromptKey(String promptKey) {
+        this.promptKey = promptKey;
+    }
+
+    public Long getPromptVersionId() {
+        return promptVersionId;
+    }
+
+    public void setPromptVersionId(Long promptVersionId) {
+        this.promptVersionId = promptVersionId;
+    }
+
+    public Long getPromptReleaseId() {
+        return promptReleaseId;
+    }
+
+    public void setPromptReleaseId(Long promptReleaseId) {
+        this.promptReleaseId = promptReleaseId;
     }
 
     public Integer getTemplateId() {

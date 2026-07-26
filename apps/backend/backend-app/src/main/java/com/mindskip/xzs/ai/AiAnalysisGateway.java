@@ -40,13 +40,12 @@ public class AiAnalysisGateway {
                     style, question, knowledgePoints, referenceDocs, taskType);
         }
 
-        PromptTemplate template = legacyAnalysisService.getTemplate(style);
-        String userPrompt = legacyAnalysisService.generatePrompt(
-                style, question, knowledgePoints, referenceDocs, taskType);
-        userPrompt = platoPromptPolicy.prepare(
-                style, question, conversationId, userPrompt);
+        AiAnalysisRequest base = legacyAnalysisService.buildAnalysisRequest(
+                style, question, knowledgePoints, referenceDocs, taskType, conversationId);
+        String userPrompt = platoPromptPolicy.prepare(
+                style, question, conversationId, base.userPrompt());
         return springAiClient.analyze(new AiAnalysisRequest(
-                template.getSystemPrompt(), userPrompt, conversationId));
+                base.systemPrompt(), userPrompt, conversationId, base.promptRef()));
     }
 
     public void analyzeStream(String style, String question, String knowledgePoints,
@@ -68,13 +67,13 @@ public class AiAnalysisGateway {
             return;
         }
 
-        PromptTemplate template = legacyAnalysisService.getTemplate(style);
-        String userPrompt = legacyAnalysisService.generatePrompt(
-                style, question, knowledgePoints, referenceDocs, taskType);
-        userPrompt = platoPromptPolicy.prepare(
-                style, question, conversationId, userPrompt);
+        AiAnalysisRequest base = legacyAnalysisService.buildAnalysisRequest(
+                style, question, knowledgePoints, referenceDocs, taskType, conversationId);
+        String userPrompt = platoPromptPolicy.prepare(
+                style, question, conversationId, base.userPrompt());
+        // 注：Spring 流式路径当前不写 t_ai_usage_log（P3 UsageLogAdvisor 接），ref 仅透传备用。
         springAiClient.analyzeStream(
-                new AiAnalysisRequest(template.getSystemPrompt(), userPrompt, conversationId),
+                new AiAnalysisRequest(base.systemPrompt(), userPrompt, conversationId, base.promptRef()),
                 tokenConsumer);
     }
 

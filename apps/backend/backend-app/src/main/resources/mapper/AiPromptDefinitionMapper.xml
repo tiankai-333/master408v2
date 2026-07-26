@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.mindskip.xzs.repository.AiPromptDefinitionMapper">
+
+    <resultMap id="BaseResultMap" type="com.mindskip.xzs.domain.ai.AiPromptDefinition">
+        <id column="id" property="id"/>
+        <result column="prompt_key" property="promptKey"/>
+        <result column="name" property="name"/>
+        <result column="description" property="description"/>
+        <result column="prompt_kind" property="promptKind"/>
+        <result column="enabled" property="enabled"/>
+        <result column="create_user" property="createUser"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="cols">id, prompt_key, name, description, prompt_kind, enabled, create_user, create_time, update_time</sql>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="cols"/> FROM ai_prompt_definition ORDER BY prompt_key ASC
+    </select>
+
+    <select id="selectByKey" resultMap="BaseResultMap">
+        SELECT <include refid="cols"/> FROM ai_prompt_definition WHERE prompt_key = #{promptKey}
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="cols"/> FROM ai_prompt_definition WHERE id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.mindskip.xzs.domain.ai.AiPromptDefinition" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_prompt_definition (prompt_key, name, description, prompt_kind, enabled, create_user)
+        VALUES (#{promptKey}, #{name}, #{description}, #{promptKind}, #{enabled}, #{createUser})
+    </insert>
+
+    <update id="updateEnabled">
+        UPDATE ai_prompt_definition SET enabled = #{enabled} WHERE id = #{id}
+    </update>
+
+</mapper>

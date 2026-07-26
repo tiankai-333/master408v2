@@ -33,12 +33,9 @@ class AiAnalysisGatewayTest {
         AiAnalysisClient springAi = mock(AiAnalysisClient.class);
         @SuppressWarnings("unchecked")
         ObjectProvider<AiAnalysisClient> provider = mock(ObjectProvider.class);
-        PromptTemplate template = new PromptTemplate();
-        template.setSystemPrompt("system");
         when(provider.getIfAvailable()).thenReturn(springAi);
-        when(legacy.getTemplate("default")).thenReturn(template);
-        when(legacy.generatePrompt("default", "q", "k", "r", "chat"))
-                .thenReturn("user");
+        when(legacy.buildAnalysisRequest("default", "q", "k", "r", "chat", null))
+                .thenReturn(new AiAnalysisRequest("system", "user", null, null));
         when(springAi.analyze(any(AiAnalysisRequest.class))).thenReturn("spring answer");
 
         PlatoConversationPromptPolicy policy = mock(PlatoConversationPromptPolicy.class);

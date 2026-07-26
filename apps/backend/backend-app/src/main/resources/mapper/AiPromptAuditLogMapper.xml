@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.mindskip.xzs.repository.AiPromptAuditLogMapper">
+
+    <resultMap id="BaseResultMap" type="com.mindskip.xzs.domain.ai.AiPromptAuditLog">
+        <id column="id" property="id"/>
+        <result column="definition_id" property="definitionId"/>
+        <result column="version_id" property="versionId"/>
+        <result column="release_id" property="releaseId"/>
+        <result column="action" property="action"/>
+        <result column="from_version_id" property="fromVersionId"/>
+        <result column="to_version_id" property="toVersionId"/>
+        <result column="detail_json" property="detailJson"/>
+        <result column="reason" property="reason"/>
+        <result column="operator_id" property="operatorId"/>
+        <result column="operator_name" property="operatorName"/>
+        <result column="operate_time" property="operateTime"/>
+        <result column="ip_address" property="ipAddress"/>
+    </resultMap>
+
+    <sql id="cols">id, definition_id, version_id, release_id, action, from_version_id, to_version_id,
+        detail_json, reason, operator_id, operator_name, operate_time, ip_address</sql>
+
+    <insert id="insert" parameterType="com.mindskip.xzs.domain.ai.AiPromptAuditLog" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_prompt_audit_log (definition_id, version_id, release_id, action, from_version_id, to_version_id,
+            detail_json, reason, operator_id, operator_name, ip_address)
+        VALUES (#{definitionId}, #{versionId}, #{releaseId}, #{action}, #{fromVersionId}, #{toVersionId},
+            #{detailJson}, #{reason}, #{operatorId}, #{operatorName}, #{ipAddress})
+    </insert>
+
+    <select id="selectByDefinitionId" resultMap="BaseResultMap">
+        SELECT <include refid="cols"/> FROM ai_prompt_audit_log
+        WHERE definition_id = #{definitionId}
+        ORDER BY operate_time DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>
