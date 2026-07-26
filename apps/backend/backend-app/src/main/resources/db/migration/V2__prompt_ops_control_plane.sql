@@ -39,7 +39,7 @@ CREATE TABLE `ai_prompt_version` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_def_version` (`definition_id`,`version_no`),
   KEY `idx_def_status` (`definition_id`,`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4_unicode_ci COMMENT='AI Prompt 不可变版本';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI Prompt 不可变版本';
 
 -- 3. 发布记录：每个 (definition, environment) 一行，记录当前 stable / canary / 灰度比例 / kill-switch
 CREATE TABLE `ai_prompt_release` (
@@ -54,7 +54,7 @@ CREATE TABLE `ai_prompt_release` (
   `release_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_def_env` (`definition_id`,`environment`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4_unicode_ci COMMENT='AI Prompt 发布与灰度';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI Prompt 发布与灰度';
 
 -- 4. 审批与操作审计
 CREATE TABLE `ai_prompt_audit_log` (
@@ -73,7 +73,7 @@ CREATE TABLE `ai_prompt_audit_log` (
   `ip_address` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_def_time` (`definition_id`,`operate_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4_unicode_ci COMMENT='AI Prompt 操作审计';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI Prompt 操作审计';
 
 -- 5. t_ai_usage_log 增加版本关联列（幂等守卫，沿用 06 风格）
 SET @dbname = DATABASE();

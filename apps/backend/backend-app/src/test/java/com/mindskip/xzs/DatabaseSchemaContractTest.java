@@ -31,7 +31,10 @@ class DatabaseSchemaContractTest {
             "t_message", "t_message_user", "t_question", "t_subject", "t_task_exam",
             "t_task_exam_customer_answer", "t_text_content", "t_user", "t_user_event_log",
             "t_user_learning_event", "t_user_learning_profile", "t_user_skill_feedback",
-            "t_user_token"
+            "t_user_token",
+            // M6.5 Prompt 控制平面（Flyway V2）
+            "ai_prompt_definition", "ai_prompt_version", "ai_prompt_release", "ai_prompt_audit_log",
+            "flyway_schema_history"
     );
 
     @Autowired
