@@ -54,6 +54,10 @@ public class PromptSeedLoader {
             created += seedAnalysisFromJson("feynman", "费曼风格", "费曼式：白话 + 类比。");
             created += seedAnalysisFromJson("first-principles", "第一性原理", "从定义与基本约束推导。");
             created += seedAnalysisFromJson("plato", "启发式", "苏格拉底式多轮追问。");
+            created += seedWorkbench("default", "工作台-标准讲解");
+            created += seedWorkbench("feynman", "工作台-费曼讲解");
+            created += seedWorkbench("first-principles", "工作台-第一性原理");
+            created += seedWorkbench("plato", "工作台-启发式讲解");
             created += seedLiteral("tool.intent-router", "意图路由器", "system",
                     IntentRouter.SYSTEM_PROMPT, null, variableNames());
             created += seedLiteral("chat.default", "默认对话", "system",
@@ -112,6 +116,13 @@ public class PromptSeedLoader {
         }
         createActiveV1(promptKey, name, null, kind, systemPrompt, userPromptTemplate, variables);
         return 1;
+    }
+
+    private int seedWorkbench(String style, String name) {
+        return seedLiteral("workbench." + style, name, "workbench",
+                WorkbenchPromptTemplates.SYSTEM_PROMPT,
+                WorkbenchPromptTemplates.templateFor(style),
+                WorkbenchPromptTemplates.variables());
     }
 
     private void createActiveV1(String promptKey, String name, String description, String kind,

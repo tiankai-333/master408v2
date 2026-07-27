@@ -6,7 +6,7 @@ import com.mindskip.xzs.ai.prompt.PromptRef;
  * AnalysisService 解析一次分析型 Prompt 的结果。
  * - {@code ref} 透传到运行日志（prompt_key + versionId + releaseId）；
  * - {@code template} 由 resolved 内容构造，复用 {@link PromptTemplate#formatUserPrompt} 渲染；
- * - {@code systemPrompt} 为最终 system 文案（已应用 workbench+default 覆盖等规则）。
+ * - {@code systemPrompt} 为当前发布版本（或代码兜底）的最终 system 文案。
  */
 public record ResolvedAnalysisPrompt(PromptRef ref, PromptTemplate template, String systemPrompt) {
 

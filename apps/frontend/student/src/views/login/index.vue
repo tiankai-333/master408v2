@@ -64,11 +64,7 @@
       </div>
 
       <div class="login-footer">
-        <span>Open Source at: <a href="https://github.com/tiankai-333/master408" target="_blank" style="color: rgba(255, 255, 255, 0.8);">github.com/tiankai-333/master408</a> | 东华大学软工实训14小组</span>
-        <div class="login-qr">
-          <img src="/miniprogram-qrcode.jpg" alt="小程序二维码" />
-          <span>微信扫码进入小程序</span>
-        </div>
+        <span>Open Source at: <a href="https://github.com/tiankai-333/master408v2" target="_blank" rel="noopener noreferrer" style="color: rgba(255, 255, 255, 0.8);">github.com/tiankai-333/master408v2</a> | 东华大学软工实训14小组</span>
       </div>
     </div>
 
@@ -402,25 +398,6 @@ onMounted(() => {
   span {
     color: rgba(255, 255, 255, 0.6);
     font-size: 13px;
-  }
-}
-
-.login-qr {
-  margin-top: 16px;
-  text-align: center;
-
-  img {
-    width: 120px;
-    height: 120px;
-    border-radius: 8px;
-    border: 2px solid rgba(255, 255, 255, 0.2);
-  }
-
-  span {
-    display: block;
-    margin-top: 6px;
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 12px;
   }
 }
 

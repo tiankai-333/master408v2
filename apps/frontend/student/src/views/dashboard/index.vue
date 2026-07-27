@@ -254,10 +254,6 @@
       </section>
     </main>
 
-    <div class="qr-float">
-      <img src="/miniprogram-qrcode.jpg" alt="小程序二维码" />
-      <span>小程序</span>
-    </div>
   </div>
 </template>
 
@@ -1218,30 +1214,4 @@ onMounted(() => {
   }
 }
 
-.qr-float {
-  position: fixed;
-  right: 24px;
-  bottom: 24px;
-  z-index: 100;
-  text-align: center;
-  background: #fff;
-  border-radius: 12px;
-  padding: 10px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-  border: 1px solid #e2e8f0;
-
-  img {
-    width: 100px;
-    height: 100px;
-    border-radius: 6px;
-    display: block;
-  }
-
-  span {
-    display: block;
-    margin-top: 4px;
-    color: #64748b;
-    font-size: 12px;
-  }
-}
 </style>

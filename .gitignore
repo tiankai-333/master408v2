@@ -9,6 +9,28 @@
 # 整个目录永不入仓：内含 v1 的 .git / 明文密钥(02_seed.sql) / 旧 jar / 旧产物
 v1-reference/
 
+# ── 私人学习 / 面试资料（仅保留在本地）─────────────────────────────────
+面试资料/
+resume/
+对话记录.md
+大模型面试题库.md
+agent概念笔记.md
+计划书.md
+
+# Codex / GitHub Modernize local agent state.
+.agents/
+.github/modernize/
+
+# ── 未授权题库 / 解析 / 爬虫知识页及其静态资源 ──────────────────────────
+# 开源仓库只提供原创 Demo Seed，不分发本地业务数据。
+apps/frontend/student/public/question-html/
+apps/frontend/student/public/question-assets/
+apps/frontend/student/public/knowledge-html/
+apps/frontend/student/public/knowledge-assets/
+apps/frontend/student/public/miniprogram-qrcode.jpg
+# Vue CLI legacy template; Vite uses apps/frontend/student/index.html.
+apps/frontend/student/public/index.html
+
 # ── 密钥 / 敏感配置（绝不入仓）──────────────────────────────────────────
 .env
 .env.*
@@ -125,6 +147,9 @@ data-local/
 *.bak
 *.orig
 *.rej
+*.aux
+*.out
+*.synctex.gz
 
 # ── 本地运行时根目录（docker-compose 卷 / 下载的工具 / 临时工作区）────────
 # 与上面 mysql-data/ qdrant-data/ 等同义，按本仓库实际目录名补齐
@@ -132,4 +157,3 @@ data-local/
 .data-*/
 .tools/
 tmp/
-

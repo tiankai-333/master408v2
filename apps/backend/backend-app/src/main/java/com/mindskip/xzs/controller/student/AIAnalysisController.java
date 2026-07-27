@@ -3,6 +3,7 @@ package com.mindskip.xzs.controller.student;
 import tools.jackson.databind.ObjectMapper;
 import com.mindskip.xzs.ai.AiAnalysisGateway;
 import com.mindskip.xzs.ai.AnalysisService;
+import com.mindskip.xzs.ai.client.AiAnalysisRequest;
 import com.mindskip.xzs.ai.PromptTemplate;
 import com.mindskip.xzs.ai.RagService;
 import com.mindskip.xzs.ai.memory.ConversationMemoryIdFactory;
@@ -107,13 +108,16 @@ public class AIAnalysisController extends BaseApiController {
         String knowledgePoints = request.get("knowledgePoints");
         String taskType = request.getOrDefault("taskType", "chat");
 
-        String prompt = analysisService.generatePrompt(style, question, knowledgePoints, null, taskType);
-        PromptTemplate template = analysisService.getTemplate(style);
+        AiAnalysisRequest resolved = analysisService.buildAnalysisRequest(
+                style, question, knowledgePoints, null, taskType, null);
 
         Map<String, String> result = new HashMap<>();
-        result.put("prompt", prompt);
-        result.put("systemPrompt", template.getSystemPrompt());
-        result.put("style", template.getStyle());
+        result.put("prompt", resolved.userPrompt());
+        result.put("systemPrompt", resolved.systemPrompt());
+        result.put("style", style);
+        result.put("promptKey", resolved.promptRef().promptKey());
+        result.put("promptVersionId", resolved.promptRef().versionId() == null
+                ? "unknown" : resolved.promptRef().versionId().toString());
 
         return RestResponse.ok(result);
     }
