@@ -20,6 +20,7 @@ agent概念笔记.md
 # Codex / GitHub Modernize local agent state.
 .agents/
 .github/modernize/
+.vscode/
 
 # ── 未授权题库 / 解析 / 爬虫知识页及其静态资源 ──────────────────────────
 # 开源仓库只提供原创 Demo Seed，不分发本地业务数据。
