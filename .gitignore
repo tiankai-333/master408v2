@@ -17,6 +17,11 @@ resume/
 agent概念笔记.md
 计划书.md
 
+# ── 本地伴随项目（独立 Git 仓库，仅为集中工作而复制到此）──────────────
+# StoryCraft 不是 Master408 的子模块；整体忽略可避免嵌套 .git 被误提交为 gitlink，
+# 同时隔离其中的 .env、node_modules、dist、SQLite 数据和本地部署文件。
+StoryCraft/
+
 # Codex / GitHub Modernize local agent state.
 .agents/
 .github/modernize/

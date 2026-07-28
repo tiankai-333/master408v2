@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.mindskip.xzs.repository.AiEvaluationMapper">
+
+    <resultMap id="RunMap" type="com.mindskip.xzs.domain.ai.AiEvaluationRun">
+        <id column="id" property="id"/>
+        <result column="dataset_version" property="datasetVersion"/>
+        <result column="candidate_label" property="candidateLabel"/>
+        <result column="engine" property="engine"/>
+        <result column="status" property="status"/>
+        <result column="case_count" property="caseCount"/>
+        <result column="passed_count" property="passedCount"/>
+        <result column="average_quality_score" property="averageQualityScore"/>
+        <result column="estimated_input_tokens" property="estimatedInputTokens"/>
+        <result column="estimated_output_tokens" property="estimatedOutputTokens"/>
+        <result column="estimated_cost" property="estimatedCost"/>
+        <result column="average_latency_ms" property="averageLatencyMs"/>
+        <result column="p95_latency_ms" property="p95LatencyMs"/>
+        <result column="error_message" property="errorMessage"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="create_time" property="createTime"/>
+        <result column="start_time" property="startTime"/>
+        <result column="finish_time" property="finishTime"/>
+    </resultMap>
+
+    <resultMap id="CaseResultMap"
+               type="com.mindskip.xzs.domain.ai.AiEvaluationCaseResultRecord">
+        <id column="id" property="id"/>
+        <result column="run_id" property="runId"/>
+        <result column="case_id" property="caseId"/>
+        <result column="category" property="category"/>
+        <result column="prompt_key" property="promptKey"/>
+        <result column="prompt_version_id" property="promptVersionId"/>
+        <result column="prompt_release_id" property="promptReleaseId"/>
+        <result column="passed" property="passed"/>
+        <result column="quality_score" property="qualityScore"/>
+        <result column="concept_coverage" property="conceptCoverage"/>
+        <result column="missing_concepts_json" property="missingConceptsJson"/>
+        <result column="forbidden_hits_json" property="forbiddenHitsJson"/>
+        <result column="response_text" property="responseText"/>
+        <result column="response_chars" property="responseChars"/>
+        <result column="estimated_input_tokens" property="estimatedInputTokens"/>
+        <result column="estimated_output_tokens" property="estimatedOutputTokens"/>
+        <result column="estimated_cost" property="estimatedCost"/>
+        <result column="end_to_end_latency_ms" property="endToEndLatencyMs"/>
+        <result column="failure_reason" property="failureReason"/>
+        <result column="error_message" property="errorMessage"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <insert id="insertRun" useGeneratedKeys="true" keyProperty="id"
+            parameterType="com.mindskip.xzs.domain.ai.AiEvaluationRun">
+        INSERT INTO ai_evaluation_run
+            (dataset_version, candidate_label, engine, status, case_count,
+             created_by, create_time)
+        VALUES
+            (#{datasetVersion}, #{candidateLabel}, #{engine}, #{status},
+             #{caseCount}, #{createdBy}, #{createTime})
+    </insert>
+
+    <update id="markRunStarted">
+        UPDATE ai_evaluation_run
+        SET status = 'running', start_time = NOW(), error_message = NULL
+        WHERE id = #{id} AND status = 'queued'
+    </update>
+
+    <update id="completeRun" parameterType="com.mindskip.xzs.domain.ai.AiEvaluationRun">
+        UPDATE ai_evaluation_run
+        SET status = 'completed',
+            passed_count = #{passedCount},
+            average_quality_score = #{averageQualityScore},
+            estimated_input_tokens = #{estimatedInputTokens},
+            estimated_output_tokens = #{estimatedOutputTokens},
+            estimated_cost = #{estimatedCost},
+            average_latency_ms = #{averageLatencyMs},
+            p95_latency_ms = #{p95LatencyMs},
+            finish_time = NOW(),
+            error_message = NULL
+        WHERE id = #{id}
+    </update>
+
+    <update id="failRun">
+        UPDATE ai_evaluation_run
+        SET status = 'failed', error_message = #{errorMessage}, finish_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <insert id="insertCaseResult" useGeneratedKeys="true" keyProperty="id"
+            parameterType="com.mindskip.xzs.domain.ai.AiEvaluationCaseResultRecord">
+        INSERT INTO ai_evaluation_case_result
+            (run_id, case_id, category, prompt_key, prompt_version_id,
+             prompt_release_id, passed, quality_score, concept_coverage,
+             missing_concepts_json, forbidden_hits_json, response_text,
+             response_chars, estimated_input_tokens, estimated_output_tokens,
+             estimated_cost, end_to_end_latency_ms, failure_reason,
+             error_message, create_time)
+        VALUES
+            (#{runId}, #{caseId}, #{category}, #{promptKey}, #{promptVersionId},
+             #{promptReleaseId}, #{passed}, #{qualityScore}, #{conceptCoverage},
+             #{missingConceptsJson}, #{forbiddenHitsJson}, #{responseText},
+             #{responseChars}, #{estimatedInputTokens}, #{estimatedOutputTokens},
+             #{estimatedCost}, #{endToEndLatencyMs}, #{failureReason},
+             #{errorMessage}, #{createTime})
+    </insert>
+
+    <select id="selectRun" resultMap="RunMap">
+        SELECT * FROM ai_evaluation_run WHERE id = #{id}
+    </select>
+
+    <select id="selectRecentRuns" resultMap="RunMap">
+        SELECT * FROM ai_evaluation_run
+        ORDER BY create_time DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectCaseResults" resultMap="CaseResultMap">
+        SELECT * FROM ai_evaluation_case_result
+        WHERE run_id = #{runId}
+        ORDER BY id
+    </select>
+</mapper>

@@ -4,6 +4,12 @@
 
     <resultMap id="BaseResultMap" type="com.mindskip.xzs.domain.ai.AiUsageLog">
         <id column="id" property="id"/>
+        <result column="request_id" property="requestId"/>
+        <result column="engine" property="engine"/>
+        <result column="mode" property="mode"/>
+        <result column="usage_source" property="usageSource"/>
+        <result column="conversation_id" property="conversationId"/>
+        <result column="first_token_latency_ms" property="firstTokenLatencyMs"/>
         <result column="user_id" property="userId"/>
         <result column="key_source" property="keySource"/>
         <result column="prompt_key" property="promptKey"/>
@@ -45,12 +51,14 @@
 
     <insert id="insert" parameterType="com.mindskip.xzs.domain.ai.AiUsageLog" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO t_ai_usage_log (
+            request_id, engine, mode, usage_source, conversation_id, first_token_latency_ms,
             user_id, key_source, prompt_key, prompt_version_id, prompt_release_id,
             template_id, style, ai_type, model, question, knowledge_points,
             knowledge_base_ids, prompt, response, response_length,
             tokens_used, input_tokens, output_tokens, cache_hit_tokens, cost, duration_ms, success, error_message,
             user_rating, user_feedback, create_time
         ) VALUES (
+            #{requestId}, #{engine}, #{mode}, #{usageSource}, #{conversationId}, #{firstTokenLatencyMs},
             #{userId}, #{keySource}, #{promptKey}, #{promptVersionId}, #{promptReleaseId},
             #{templateId}, #{style}, #{aiType}, #{model}, #{question}, #{knowledgePoints},
             #{knowledgeBaseIds}, #{prompt}, #{response}, #{responseLength},
@@ -64,6 +72,14 @@
             user_rating = #{userRating},
             user_feedback = #{userFeedback}
         WHERE id = #{id}
+    </update>
+
+    <update id="updateFeedbackForUser">
+        UPDATE t_ai_usage_log
+        SET user_rating = #{rating},
+            user_feedback = #{feedback}
+        WHERE id = #{id}
+          AND user_id = #{userId}
     </update>
 
     <delete id="deleteById">
@@ -126,7 +142,9 @@
     </select>
 
     <select id="selectUserRecentLogs" resultType="java.util.HashMap">
-        SELECT id, key_source AS keySource, style AS taskType, ai_type AS provider, model,
+        SELECT id, request_id AS requestId, engine, mode, usage_source AS usageSource,
+               first_token_latency_ms AS firstTokenLatencyMs,
+               key_source AS keySource, style AS taskType, ai_type AS provider, model,
                LEFT(question, 80) AS question,
                tokens_used AS tokensUsed, cache_hit_tokens AS cacheHitTokens,
                input_tokens AS inputTokens, output_tokens AS outputTokens,

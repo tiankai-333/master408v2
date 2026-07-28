@@ -11,8 +11,8 @@ Master408 原有系统已经具备题库、试卷、错题、知识点和用户�
 - 按用户和会话隔离的 Redis 对话记忆；
 - 面向 408 知识库的 RAG 检索；
 - 受控的 Tool Calling；
-- 可测试、审批、灰度和回滚的 PromptOps；
-- 管理端模型配置、用量统计和 Prompt Studio。
+- 可配置、可测试和可追溯的教学 Prompt；
+- 管理端模型配置、用量统计和教学策略测试。
 
 项目关注的不只是“模型能否回答”，还包括兼容迁移、数据契约、故障回退、密钥安全、运行时治理以及后续扩展成本。
 
@@ -37,19 +37,31 @@ Master408 原有系统已经具备题库、试卷、错题、知识点和用户�
 ### RAG 与工具调用
 
 - 使用 Spring AI VectorStore 抽象对接 Qdrant；
-- 支持知识内容索引和相似性检索；
-- RAG 不可用时保留非向量链路，避免阻断核心问答；
+- 使用 MySQL ngram 全文索引提供本地中文词法召回；
+- 通过带权 RRF 融合向量/词法候选，再按查询覆盖和证据分数确定性重排；
+- Qdrant 不可用时自动保留本地词法链路，不依赖额外重排模型；
+- 检索运行、候选分数、来源位置和回答实际使用的引用均可追溯；
 - Tool Calling 采用“规划—确认—执行”模式，写操作不由模型直接触发；
 - 当前工具覆盖学习画像、知识点检索及受控组卷等业务场景。
 
-### PromptOps 控制面
+### 教学 Prompt 管理与测试
 
 - Prompt 定义与版本分离；
 - 草稿、提交、审批、灰度、全量发布和回滚；
 - 发布前变量校验与测试；
 - 基于稳定哈希的用户灰度；
 - Kill Switch 和代码兜底 Prompt；
-- 管理端提供版本 Diff、测试和发布操作入口。
+- 管理端提供版本 Diff、在线测试和发布操作入口；
+- 当前管理的是教学 Prompt 与发布策略，不将其包装为包含工具、流程和权限的完整 Skill 平台。
+
+### 评测、可观测与稳定性
+
+- 内置版本化原创固定评测集，比较 Prompt 质量、估算 Token/成本和端到端延迟；
+- 管理端可异步运行真实模型评测、查看逐条证据并比较同版本数据集的两个候选；
+- 同步 Spring AI 调用读取供应商真实 Usage，缺失时明确标注为 estimated；
+- requestId 串联用户、会话、模型、Prompt 发布版本、费用、耗时和用户反馈；
+- 应用边界提供并发舱壁、速率调度、瞬时错误重试、429 退避、熔断和供应商降级；
+- 流式响应首 Token 后禁止重放，避免重试产生重复正文。
 
 ## 系统架构
 
@@ -64,11 +76,12 @@ flowchart LR
     C --> M["Spring AI ChatModel"]
 
     API --> MEM["Redis Chat Memory"]
-    API --> RAG["RAG Service"]
-    RAG --> V["Qdrant"]
+    API --> RAG["Hybrid RAG"]
+    RAG --> V["Qdrant 向量召回"]
+    RAG --> SQL["MySQL 词法召回"]
     API --> TOOL["受控 Tool Calling"]
 
-    A --> OPS["PromptOps 控制面"]
+    A --> OPS["教学 Prompt 管理与测试"]
     OPS --> DB["MySQL"]
     DB --> API
 ```
@@ -149,6 +162,9 @@ $env:AI_CHAT_MODEL='<model-name>'
 
 - `V1__baseline.sql`
 - `V2__prompt_ops_control_plane.sql`
+- `V3__ai_evaluation_baseline.sql`
+- `V4__ai_observability_chain.sql`
+- `V5__rag_hybrid_retrieval.sql`
 
 Flyway 文件只负责结构和 PromptOps 必要配置，不包含原题库。需要最小演示数据时，
 可在 Flyway 完成后手动导入原创示例：
@@ -187,13 +203,81 @@ npm run dev
 
 ## 测试
 
-后端测试覆盖应用上下文、数据库结构契约、模型路由、同步与流式委托、Prompt 解析、会话隔离、RAG 配置、Tool Calling 和 PromptOps 状态流转。
+后端测试覆盖应用上下文、数据库结构契约、模型路由、同步与流式委托、Prompt
+解析、会话隔离、固定评测、真实 Usage、反馈归属、稳定性策略、混合 RAG、
+Tool Calling 和教学 Prompt 状态流转。
 
 ```powershell
 mvn -f apps/backend/backend-app/pom.xml test
 ```
 
 多数 AI 测试使用 Mock ChatModel，不会调用真实模型。数据库契约测试和 Redis 集成测试需要相应的本地基础设施。
+
+当前完整后端测试结果（2026-07-28）：**67 tests，0 failures，0 errors，0 skipped**。
+
+### 固定评测集实测结果
+
+以下结果由管理端异步评测接口运行并写入 `ai_evaluation_run` /
+`ai_evaluation_case_result`，不是单元测试伪造数据。
+
+测试环境：2026-07-28，本地单实例，数据集
+`408-prompt-baseline-v1`，DeepSeek OpenAI-compatible API。固定集共 12 条：
+9 条调用真实模型，3 条为输入契约和失败隔离用例，不计入真实模型汇总。
+
+| 指标 | 实测结果 |
+| --- | ---: |
+| 真实模型用例 | 9 |
+| 通过 | 4 / 9 |
+| 平均质量分 | 81.11 / 100 |
+| 估算输入 Token | 3,929 |
+| 估算输出 Token | 3,783 |
+| 平均端到端延迟 | 5,667 ms |
+| p95 端到端延迟 | 10,434 ms |
+| 费用 | N/A（该模型尚未配置可信单价，不把数据库中的 0 当作零成本） |
+
+失败并未隐藏：5 条未通过用例中，3 条触发概念覆盖门槛，2 条触发回答长度门槛。
+这表明当前确定性评分适合做回归信号，但“出现某个关键词”不等于答案一定正确；
+下一步需要人工标注集和模型裁判交叉验证。
+
+### 流式首 Token（TTFT）实测
+
+TTFT 从进入 Spring AI 流式 Gateway 开始计时，到收到供应商第一个实际内容 chunk
+为止，并与完整模型调用耗时一起写入 `t_ai_usage_log`。同一环境下连续执行 5 条
+408 知识问答得到：
+
+| 样本 | TTFT | 完整模型调用 |
+| --- | ---: | ---: |
+| 进程与线程 | 6,937 ms | 11,538 ms |
+| TCP 三次握手 | 4,377 ms | 13,104 ms |
+| 虚拟内存 | 2,892 ms | 9,797 ms |
+| 局部性原理 | 5,856 ms | 13,559 ms |
+| 死锁必要条件 | 3,186 ms | 5,611 ms |
+| **汇总** | **平均 4,650 ms；p50 4,377 ms；p95 6,937 ms** | **平均 10,722 ms** |
+
+这里只是用于验证指标采集和发现慢样本的小样本测试，不代表容量结论。正式性能测试还需
+固定模型参数、预热、扩大样本并记录并发度、错误率、p95/p99 和 Token 规模。
+
+### 模型失败的精确分类与处理
+
+项目先读取结构化 HTTP 状态和强类型网络异常；只有兼容客户端丢失状态信息时，才回退到
+异常链消息识别。分类结果进入 Micrometer 指标，重试策略依据失败语义决定，而不是对所有异常
+盲目重试。
+
+| 失败类型 | 识别依据 | 是否重试 | 处理 |
+| --- | --- | --- | --- |
+| `RATE_LIMIT` | HTTP 429 / rate-limit | 是 | 尊重 Retry-After，指数退避 + jitter，上限次数 |
+| `TIMEOUT` | Timeout 类型异常 | 是 | 有界重试，连续失败计入熔断 |
+| `SERVER_ERROR` | HTTP 5xx | 是 | 有界重试，可进入供应商降级 |
+| `CONNECTION_ERROR` | Connect/Socket 异常 | 是 | 有界重试，记录失败指标 |
+| `AUTHENTICATION` | HTTP 401/403 | 否 | 直接失败并检查密钥/权限，避免扩大费用 |
+| `BAD_REQUEST` | 其他 HTTP 4xx | 否 | 返回参数/能力错误，不重复发送错误请求 |
+| `CAPACITY` | 本地并发舱壁拒绝 | 否 | 快速拒绝，保护线程与下游配额 |
+| `CIRCUIT_OPEN` | 熔断器开启 | 否 | 快速失败或走允许的备用链路 |
+| `UNKNOWN` | 无可靠结构化证据 | 否 | 保守失败、保留 errorId，不猜测重试 |
+
+额外的流式约束：首 Token 发出后绝不重放调用，否则用户会收到重复正文；若首 Token
+之前失败，才允许进入安全回退。相关隔离测试位于
+`AiFailureClassifierTest`、`AiResiliencePolicyTest` 和 `AiAnalysisGatewayTest`。
 
 ## 安全说明
 
@@ -209,15 +293,18 @@ mvn -f apps/backend/backend-app/pom.xml test
 
 ## 当前边界与后续计划
 
-已经完成的主链路包括 Spring AI 接入、Legacy 回退、流式响应、Redis 会话记忆、基础 RAG、受控工具调用和 PromptOps 第一阶段。
+已经完成的主链路包括 Spring AI 接入、Legacy 回退、流式响应、Redis 会话记忆、
+受控工具调用、教学 Prompt 管理与测试、固定评测、统一可观测、调用稳定性和混合 RAG。
 
-后续重点：
+当前边界：
 
-- 建立固定评测集，补齐 Prompt 质量、Token 成本和端到端延迟对比；
-- 增加限流、重试、熔断、供应商降级和 429 调度；
-- 完善 RAG 混合检索、重排序与引用溯源；
-- 建立模型调用、Prompt 版本和用户反馈的统一可观测链路；
-- 处理前端历史依赖的安全升级与回归测试。
+- 流式 Token 在部分 OpenAI 兼容厂商下没有最终 Usage，因此使用 estimated；
+- 本地确定性重排成本低且稳定，但不等同于 Cross-Encoder 语义重排；
+- 调用预算目前是单应用实例级；多实例部署应将配额和熔断状态迁移到网关或 Redis；
+- 用户反馈 API 已建立，学生工作台的评分交互仍可继续完善；
+- 仍需处理前端历史依赖的安全升级与更大规模压测。
+
+完整技术决策和失败测试见 [AI 工程演进记录](docs/AI工程演进记录.md)。
 
 ## 项目来源与许可
 

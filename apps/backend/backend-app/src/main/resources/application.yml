@@ -92,7 +92,16 @@ ai:
     max-messages: ${AI_MEMORY_MAX_MESSAGES:12}
     ttl: ${AI_MEMORY_TTL:24h}
     key-prefix: ${AI_MEMORY_KEY_PREFIX:master408:chat-memory:}
+  resilience:
+    max-concurrent: ${AI_MAX_CONCURRENT:16}
+    requests-per-second: ${AI_REQUESTS_PER_SECOND:8}
+    max-attempts: ${AI_MAX_ATTEMPTS:3}
+    base-delay: ${AI_RETRY_BASE_DELAY:250ms}
+    circuit-failure-threshold: ${AI_CIRCUIT_FAILURE_THRESHOLD:5}
+    circuit-open-duration: ${AI_CIRCUIT_OPEN_DURATION:30s}
   rag:
+    hybrid:
+      candidate-multiplier: ${AI_RAG_CANDIDATE_MULTIPLIER:3}
     vector:
       enabled: ${AI_RAG_VECTOR_ENABLED:false}
       collection: ${AI_RAG_COLLECTION:xzs_408_chunks_spring_v1}

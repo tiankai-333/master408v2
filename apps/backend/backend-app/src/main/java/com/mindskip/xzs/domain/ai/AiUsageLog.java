@@ -4,6 +4,12 @@ import java.util.Date;
 
 public class AiUsageLog {
     private Integer id;
+    private String requestId;
+    private String engine;
+    private String mode;
+    private String usageSource;
+    private String conversationId;
+    private Integer firstTokenLatencyMs;
     private Integer userId;
     private String keySource;
     /** Prompt 控制平面关联：本次响应用了哪个 prompt_key / 版本 / 发布 */
@@ -39,6 +45,19 @@ public class AiUsageLog {
     public void setId(Integer id) {
         this.id = id;
     }
+
+    public String getRequestId() { return requestId; }
+    public void setRequestId(String requestId) { this.requestId = requestId; }
+    public String getEngine() { return engine; }
+    public void setEngine(String engine) { this.engine = engine; }
+    public String getMode() { return mode; }
+    public void setMode(String mode) { this.mode = mode; }
+    public String getUsageSource() { return usageSource; }
+    public void setUsageSource(String usageSource) { this.usageSource = usageSource; }
+    public String getConversationId() { return conversationId; }
+    public void setConversationId(String conversationId) { this.conversationId = conversationId; }
+    public Integer getFirstTokenLatencyMs() { return firstTokenLatencyMs; }
+    public void setFirstTokenLatencyMs(Integer firstTokenLatencyMs) { this.firstTokenLatencyMs = firstTokenLatencyMs; }
 
     public Integer getUserId() {
         return userId;
