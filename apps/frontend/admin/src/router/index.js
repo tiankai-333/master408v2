@@ -291,6 +291,12 @@ const constantRoutes = [
         component: () => import('@/views/ai/prompt-studio.vue'),
         name: 'AiPromptStudioPage',
         meta: { title: 'Prompt Studio', icon: 'edit', noCache: true }
+      },
+      {
+        path: 'evaluation',
+        component: () => import('@/views/ai/evaluation.vue'),
+        name: 'AiEvaluationPage',
+        meta: { title: '固定评测', icon: 'chart', noCache: true }
       }
     ]
   },

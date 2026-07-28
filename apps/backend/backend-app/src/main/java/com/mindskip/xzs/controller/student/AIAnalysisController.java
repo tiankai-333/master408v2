@@ -2,6 +2,8 @@ package com.mindskip.xzs.controller.student;
 
 import tools.jackson.databind.ObjectMapper;
 import com.mindskip.xzs.ai.AiAnalysisGateway;
+import com.mindskip.xzs.ai.AiFeedbackService;
+import com.mindskip.xzs.ai.AiGatewayResult;
 import com.mindskip.xzs.ai.AnalysisService;
 import com.mindskip.xzs.ai.client.AiAnalysisRequest;
 import com.mindskip.xzs.ai.PromptTemplate;
@@ -43,6 +45,7 @@ public class AIAnalysisController extends BaseApiController {
 
     private final AnalysisService analysisService;
     private final AiAnalysisGateway aiAnalysisGateway;
+    private final AiFeedbackService aiFeedbackService;
     private final RagService ragService;
     private final AiPaperComposeService aiPaperComposeService;
     private final AiAgentPlannerService aiAgentPlannerService;
@@ -51,6 +54,7 @@ public class AIAnalysisController extends BaseApiController {
 
     @Autowired
     public AIAnalysisController(AnalysisService analysisService, AiAnalysisGateway aiAnalysisGateway,
+                                AiFeedbackService aiFeedbackService,
                                 RagService ragService,
                                 AiPaperComposeService aiPaperComposeService,
                                 AiAgentPlannerService aiAgentPlannerService,
@@ -58,6 +62,7 @@ public class AIAnalysisController extends BaseApiController {
                                 ConversationMemoryService conversationMemoryService) {
         this.analysisService = analysisService;
         this.aiAnalysisGateway = aiAnalysisGateway;
+        this.aiFeedbackService = aiFeedbackService;
         this.ragService = ragService;
         this.aiPaperComposeService = aiPaperComposeService;
         this.aiAgentPlannerService = aiAgentPlannerService;
@@ -174,6 +179,8 @@ public class AIAnalysisController extends BaseApiController {
 
             String aiResult;
             String resultEngine;
+            Integer resultUsageLogId = null;
+            String resultRequestId = null;
 
             if (apiKey != null && !apiKey.trim().isEmpty()) {
                 logger.info("使用前端配置的AI - 类型: {}, 模型: {}", aiType, model);
@@ -183,10 +190,13 @@ public class AIAnalysisController extends BaseApiController {
                 resultEngine = "legacy-custom";
             } else {
                 logger.info("使用后端配置的默认AI");
-                aiResult = aiAnalysisGateway.analyze(
+                AiGatewayResult gatewayResult = aiAnalysisGateway.analyzeDetailed(
                         style, question, knowledgePoints, referenceDocs, taskType,
                         conversationId);
-                resultEngine = aiAnalysisGateway.engineName();
+                aiResult = gatewayResult.content();
+                resultUsageLogId = gatewayResult.usageLogId();
+                resultRequestId = gatewayResult.requestId();
+                resultEngine = gatewayResult.engine();
             }
             
             String prompt = analysisService.generatePrompt(style, question, knowledgePoints, referenceDocs, taskType);
@@ -199,16 +209,29 @@ public class AIAnalysisController extends BaseApiController {
             result.put("style", style);
             result.put("taskType", taskType);
             result.put("engine", resultEngine);
+            if (resultUsageLogId != null) {
+                result.put("usageLogId", resultUsageLogId);
+            }
+            if (resultRequestId != null) {
+                result.put("requestId", resultRequestId);
+            }
             
             if (ragDocs != null && !ragDocs.isEmpty()) {
                 List<Map<String, Object>> references = ragDocs.stream().map(doc -> {
                     Map<String, Object> ref = new HashMap<>();
-                    ref.put("title", doc.getTitle());
-                    ref.put("similarity", String.format("%.2f", doc.getSimilarity()));
-                    ref.put("id", doc.getId());
-                    return ref;
-                }).collect(Collectors.toList());
-                result.put("references", references);
+                ref.put("title", doc.getTitle());
+                ref.put("similarity", String.format("%.2f", doc.getSimilarity()));
+                ref.put("id", doc.getId());
+                ref.put("rank", doc.getRankNo());
+                ref.put("vectorScore", doc.getVectorScore());
+                ref.put("lexicalScore", doc.getLexicalScore());
+                ref.put("rerankScore", doc.getRerankScore());
+                ref.put("retrievalLogId", doc.getRetrievalLogId());
+                ref.put("sourcePosition", doc.getSourcePosition());
+                return ref;
+            }).collect(Collectors.toList());
+            result.put("references", references);
+            ragService.markCitationsUsed(ragDocs, aiResult);
             }
 
             logger.info("AI分析完成 - 结果长度: {}", aiResult.length());
@@ -221,6 +244,23 @@ public class AIAnalysisController extends BaseApiController {
         } finally {
             RagService.clearCurrentUserId();
             AnalysisService.clearCurrentUserId();
+        }
+    }
+
+    @PostMapping("/feedback")
+    public RestResponse<Void> submitFeedback(@RequestBody Map<String, Object> request) {
+        try {
+            Integer usageLogId = integerValue(request.get("usageLogId"));
+            Integer rating = integerValue(request.get("rating"));
+            String feedback = request.get("feedback") == null
+                    ? null : String.valueOf(request.get("feedback"));
+            if (!aiFeedbackService.submit(
+                    usageLogId, getCurrentUser().getId(), rating, feedback)) {
+                return RestResponse.fail(2, "调用记录不存在或不属于当前用户");
+            }
+            return RestResponse.ok();
+        } catch (IllegalArgumentException error) {
+            return RestResponse.fail(2, error.getMessage());
         }
     }
 
@@ -298,6 +338,12 @@ public class AIAnalysisController extends BaseApiController {
                             ref.put("title", doc.getTitle());
                             ref.put("similarity", String.format("%.2f", doc.getSimilarity()));
                             ref.put("id", doc.getId());
+                            ref.put("rank", doc.getRankNo());
+                            ref.put("vectorScore", doc.getVectorScore());
+                            ref.put("lexicalScore", doc.getLexicalScore());
+                            ref.put("rerankScore", doc.getRerankScore());
+                            ref.put("retrievalLogId", doc.getRetrievalLogId());
+                            ref.put("sourcePosition", doc.getSourcePosition());
                             return ref;
                         }).collect(Collectors.toList());
                         sendEvent(emitter, "references", objectMapper.writeValueAsString(references));
@@ -313,13 +359,17 @@ public class AIAnalysisController extends BaseApiController {
                 String apiUrl = (String) request.getOrDefault("apiUrl", "");
                 String model = (String) request.getOrDefault("model", "");
 
+                String generatedAnswer;
                 if (apiKey != null && !apiKey.trim().isEmpty()) {
                     sendEvent(emitter, "engine", "legacy-custom");
-                    analysisService.analyzeWithCustomAIStream(aiType, apiKey, apiUrl, model, style, question, knowledgePoints, referenceDocs, taskType,
+                    generatedAnswer = analysisService.analyzeWithCustomAIStream(
+                        aiType, apiKey, apiUrl, model, style, question,
+                        knowledgePoints, referenceDocs, taskType,
                         token -> sendEvent(emitter, "chunk", token));
                 } else {
                     sendEvent(emitter, "engine", aiAnalysisGateway.engineName());
-                    aiAnalysisGateway.analyzeStream(style, question, knowledgePoints,
+                    AiGatewayResult gatewayResult = aiAnalysisGateway.analyzeStreamDetailed(
+                        style, question, knowledgePoints,
                         referenceDocs, taskType, conversationId,
                         token -> {
                             try {
@@ -328,8 +378,18 @@ public class AIAnalysisController extends BaseApiController {
                                 throw new IllegalStateException("SSE connection closed", e);
                             }
                         });
+                    Map<String, Object> observation = new HashMap<>();
+                    observation.put("usageLogId", gatewayResult.usageLogId());
+                    observation.put("requestId", gatewayResult.requestId());
+                    sendEvent(emitter, "observation",
+                            objectMapper.writeValueAsString(observation));
+                    if (!"spring-ai".equals(gatewayResult.engine())) {
+                        sendEvent(emitter, "engine", gatewayResult.engine());
+                    }
+                    generatedAnswer = gatewayResult.content();
                 }
 
+                ragService.markCitationsUsed(ragDocs, generatedAnswer);
                 sendEvent(emitter, "done", "ok");
                 emitter.complete();
             } catch (Exception e) {
@@ -382,6 +442,20 @@ public class AIAnalysisController extends BaseApiController {
             return text;
         }
         return text.substring(0, maxLength) + "\n...(已截断)";
+    }
+
+    private Integer integerValue(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value == null || String.valueOf(value).isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(String.valueOf(value));
+        } catch (NumberFormatException error) {
+            throw new IllegalArgumentException("参数格式不正确");
+        }
     }
 
     private boolean shouldComposePaper(String taskType, String question, Map<String, Object> request) {

@@ -18,6 +18,9 @@ public interface AiUsageLogMapper {
 
     int update(AiUsageLog usageLog);
 
+    int updateFeedbackForUser(@Param("id") Integer id, @Param("userId") Integer userId,
+                              @Param("rating") Integer rating, @Param("feedback") String feedback);
+
     int deleteById(@Param("id") Integer id);
 
     int countTotal();

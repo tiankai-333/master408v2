@@ -39,6 +39,8 @@ public class AnalysisService {
 
     public static void setCurrentUserId(Integer userId) { currentUser.set(userId); }
     public static void clearCurrentUserId() { currentUser.remove(); currentKeySource.remove(); }
+    public static Integer getCurrentUserId() { return currentUser.get(); }
+    public static String getCurrentKeySource() { return currentKeySource.get(); }
 
     private final Map<String, PromptTemplate> promptTemplates;
     private final ObjectMapper objectMapper;
@@ -400,6 +402,11 @@ public class AnalysisService {
     }
 
     private ResolvedProvider resolveProvider() {
+        List<ResolvedProvider> candidates = resolveProviders();
+        return candidates.isEmpty() ? null : candidates.get(0);
+    }
+
+    private List<ResolvedProvider> resolveProviders() {
         String defaultModel = "glm-4.5-air";
         List<ResolvedProvider> candidates = new ArrayList<>();
 
@@ -444,7 +451,78 @@ public class AnalysisService {
 
         // Sort by priority ascending (lowest number = highest priority)
         candidates.sort(Comparator.comparingInt(r -> r.priority));
-        return candidates.isEmpty() ? null : candidates.get(0);
+        return candidates;
+    }
+
+    /**
+     * Fallback path used after the primary Spring AI provider has exhausted
+     * transient retries or its circuit is open. The public provider/model used
+     * by Spring AI is excluded while independent private credentials remain
+     * eligible fallback candidates.
+     */
+    public String analyzeWithFallbackProviders(
+            String style, String question, String knowledgePoints,
+            String referenceDocs, String taskType) throws Exception {
+        ResolvedAnalysisPrompt rap = resolveAnalysisPrompt(
+                style, taskType, PromptContext.of(currentUser.get(), null));
+        String userPrompt = renderUserPrompt(
+                rap, style, question, knowledgePoints, referenceDocs, taskType);
+        List<ResolvedProvider> candidates = resolveProviders();
+        Exception last = null;
+        for (ResolvedProvider provider : candidates) {
+            if (isSpringPrimaryProvider(provider)) {
+                continue;
+            }
+            try {
+                currentKeySource.set(provider.source);
+                return callAiApi(rap.systemPrompt(), userPrompt, provider.type, provider.key,
+                        provider.url, provider.model, rap.ref());
+            } catch (Exception error) {
+                last = error;
+            }
+        }
+        if (last != null) {
+            throw last;
+        }
+        throw new IllegalStateException("No secondary AI provider is enabled");
+    }
+
+    public String analyzeStreamWithFallbackProviders(
+            String style, String question, String knowledgePoints,
+            String referenceDocs, String taskType,
+            StreamTokenConsumer tokenConsumer) throws Exception {
+        ResolvedAnalysisPrompt rap = resolveAnalysisPrompt(
+                style, taskType, PromptContext.of(currentUser.get(), null));
+        String userPrompt = renderUserPrompt(
+                rap, style, question, knowledgePoints, referenceDocs, taskType);
+        List<ResolvedProvider> candidates = resolveProviders();
+        Exception last = null;
+        for (ResolvedProvider provider : candidates) {
+            if (isSpringPrimaryProvider(provider)) {
+                continue;
+            }
+            try {
+                currentKeySource.set(provider.source);
+                return callAiApiStream(rap.systemPrompt(), userPrompt, provider.type, provider.key,
+                        provider.url, provider.model, tokenConsumer, rap.ref());
+            } catch (Exception error) {
+                last = error;
+            }
+        }
+        if (last != null) {
+            throw last;
+        }
+        throw new IllegalStateException("No secondary AI provider is enabled");
+    }
+
+    private boolean isSpringPrimaryProvider(ResolvedProvider candidate) {
+        if (!"public".equals(candidate.source)) {
+            return false;
+        }
+        AiProviderConfig primary = aiProviderConfigService.getFirstEnabled();
+        return primary != null
+                && Objects.equals(apiType(primary.getProviderCode()), candidate.type)
+                && Objects.equals(primary.getChatModel(), candidate.model);
     }
 
     private String chatEndpointFromBase(String baseUrl) {

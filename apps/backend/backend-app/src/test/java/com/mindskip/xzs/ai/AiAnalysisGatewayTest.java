@@ -21,7 +21,9 @@ class AiAnalysisGatewayTest {
         when(legacy.analyzeWithAI("default", "q", "k", "r", "chat"))
                 .thenReturn("legacy answer");
 
-        String result = new AiAnalysisGateway(legacy, provider, mock(PlatoConversationPromptPolicy.class))
+        String result = new AiAnalysisGateway(legacy, provider,
+                mock(PlatoConversationPromptPolicy.class), mock(AiUsageObservationService.class),
+                passthroughPolicy())
                 .analyze("default", "q", "k", "r", "chat");
 
         assertThat(result).isEqualTo("legacy answer");
@@ -36,15 +38,30 @@ class AiAnalysisGatewayTest {
         when(provider.getIfAvailable()).thenReturn(springAi);
         when(legacy.buildAnalysisRequest("default", "q", "k", "r", "chat", null))
                 .thenReturn(new AiAnalysisRequest("system", "user", null, null));
-        when(springAi.analyze(any(AiAnalysisRequest.class))).thenReturn("spring answer");
+        when(springAi.analyzeResult(any(AiAnalysisRequest.class)))
+                .thenReturn(com.mindskip.xzs.ai.client.AiAnalysisResult.estimated(
+                        new AiAnalysisRequest("system", "user"), "spring answer"));
 
         PlatoConversationPromptPolicy policy = mock(PlatoConversationPromptPolicy.class);
         when(policy.prepare("default", "q", null, "user")).thenReturn("user");
 
-        String result = new AiAnalysisGateway(legacy, provider, policy)
+        AiUsageObservationService observations = mock(AiUsageObservationService.class);
+        when(observations.observe(any(), any(), any(), any(), any(), any(), any(),
+                org.mockito.ArgumentMatchers.anyLong(), any(), any(Boolean.class), any()))
+                .thenReturn(new AiUsageObservationService.Observation(7, "request-7"));
+
+        String result = new AiAnalysisGateway(
+                legacy, provider, policy, observations, passthroughPolicy())
                 .analyze("default", "q", "k", "r", "chat");
 
         assertThat(result).isEqualTo("spring answer");
-        verify(springAi).analyze(new AiAnalysisRequest("system", "user"));
+        verify(springAi).analyzeResult(new AiAnalysisRequest("system", "user"));
+    }
+
+    private com.mindskip.xzs.ai.resilience.AiResiliencePolicy passthroughPolicy() {
+        return new com.mindskip.xzs.ai.resilience.AiResiliencePolicy(
+                4, 100, 1, java.time.Duration.ofMillis(1),
+                5, java.time.Duration.ofSeconds(1),
+                new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
     }
 }

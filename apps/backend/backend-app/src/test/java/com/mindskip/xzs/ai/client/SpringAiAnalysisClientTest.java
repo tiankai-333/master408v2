@@ -7,6 +7,8 @@ import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.InMemoryChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
+import org.springframework.ai.chat.metadata.ChatResponseMetadata;
+import org.springframework.ai.chat.metadata.DefaultUsage;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -26,6 +28,30 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class SpringAiAnalysisClientTest {
+
+    @Test
+    void returnsProviderUsageWhenTheModelSuppliesIt() {
+        ChatModel model = mock(ChatModel.class);
+        when(model.getOptions()).thenReturn(ChatOptions.builder().build());
+        ChatResponseMetadata metadata = ChatResponseMetadata.builder()
+                .model("deepseek-chat")
+                .usage(new DefaultUsage(120, 30, 150, null, 20L, 0L))
+                .build();
+        when(model.call(any(Prompt.class))).thenReturn(new ChatResponse(
+                List.of(new Generation(new AssistantMessage("measured answer"))), metadata));
+        SpringAiAnalysisClient client = new SpringAiAnalysisClient(
+                ChatClient.builder(model), new SimpleMeterRegistry());
+
+        AiAnalysisResult result = client.analyzeResult(
+                new AiAnalysisRequest("system", "user"));
+
+        assertThat(result.model()).isEqualTo("deepseek-chat");
+        assertThat(result.inputTokens()).isEqualTo(120);
+        assertThat(result.outputTokens()).isEqualTo(30);
+        assertThat(result.totalTokens()).isEqualTo(150);
+        assertThat(result.cacheHitTokens()).isEqualTo(20);
+        assertThat(result.usageSource()).isEqualTo("provider");
+    }
 
     @Test
     void delegatesThroughSpringAiWithoutCallingARealProvider() {

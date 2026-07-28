@@ -12,5 +12,9 @@ public interface AiAnalysisClient {
 
     String analyze(AiAnalysisRequest request);
 
+    default AiAnalysisResult analyzeResult(AiAnalysisRequest request) {
+        return AiAnalysisResult.estimated(request, analyze(request));
+    }
+
     void analyzeStream(AiAnalysisRequest request, Consumer<String> tokenConsumer);
 }

@@ -54,7 +54,9 @@ public class DatabaseSpringAiConfiguration {
                 .apiKey(apiKey)
                 .model(provider.getChatModel())
                 .timeout(Duration.ofSeconds(90))
-                .maxRetries(1)
+                // Retries are coordinated at the application boundary so 429
+                // backoff, circuit state and fallback are observable in one place.
+                .maxRetries(0)
                 .build();
 
         return OpenAiChatModel.builder()

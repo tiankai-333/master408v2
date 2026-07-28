@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.mindskip.xzs.repository.RagRetrievalMapper">
+
+    <select id="selectLexicalCandidates" resultType="com.mindskip.xzs.domain.rag.RagLexicalHit">
+        SELECT rc.id,
+               COALESCE(rc.citation_label, rd.title) AS title,
+               COALESCE(rc.content_text, rc.content) AS content,
+               rc.source_position AS sourcePosition,
+               MATCH(rc.content_text, rc.citation_label)
+                   AGAINST(#{query} IN NATURAL LANGUAGE MODE) AS lexicalScore
+        FROM rag_chunk rc
+        JOIN rag_document rd ON rd.id = rc.document_id
+        WHERE rc.enabled = b'1'
+          AND rd.status = 'ready'
+          AND MATCH(rc.content_text, rc.citation_label)
+              AGAINST(#{query} IN NATURAL LANGUAGE MODE)
+        ORDER BY lexicalScore DESC, rc.id ASC
+        LIMIT #{limit}
+    </select>
+
+    <insert id="insertRetrievalLog"
+            parameterType="com.mindskip.xzs.domain.rag.RagRetrievalLogRecord"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO rag_retrieval_log
+            (user_id, query_text, query_hash, top_k, result_count,
+             latency_ms, metadata, create_time)
+        VALUES
+            (#{userId}, #{queryText}, #{queryHash}, #{topK}, #{resultCount},
+             #{latencyMs}, #{metadata}, #{createTime})
+    </insert>
+
+    <insert id="insertCitation">
+        INSERT INTO rag_answer_citation
+            (retrieval_log_id, chunk_id, rank_no, score, used_in_answer,
+             citation_text, create_time)
+        VALUES
+            (#{retrievalLogId}, #{chunkId}, #{rankNo}, #{score}, b'0',
+             #{citationText}, NOW())
+    </insert>
+
+    <update id="markCitationUsed">
+        UPDATE rag_answer_citation
+        SET used_in_answer = b'1'
+        WHERE retrieval_log_id = #{retrievalLogId}
+          AND rank_no = #{rankNo}
+    </update>
+
+</mapper>

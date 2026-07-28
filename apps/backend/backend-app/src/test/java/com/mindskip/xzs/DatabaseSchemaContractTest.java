@@ -34,6 +34,8 @@ class DatabaseSchemaContractTest {
             "t_user_token",
             // M6.5 Prompt 控制平面（Flyway V2）
             "ai_prompt_definition", "ai_prompt_version", "ai_prompt_release", "ai_prompt_audit_log",
+            // 固定评测运行与逐条证据（Flyway V3）
+            "ai_evaluation_run", "ai_evaluation_case_result",
             "flyway_schema_history"
     );
 
@@ -53,10 +55,20 @@ class DatabaseSchemaContractTest {
     void postSchemaFixColumnsExist() {
         assertThat(columnsOf("t_ai_usage_log"))
                 .contains("user_id", "key_source", "cache_hit_tokens", "input_tokens",
-                        "output_tokens");
+                        "output_tokens", "request_id", "engine", "mode", "usage_source",
+                        "conversation_id", "first_token_latency_ms");
         assertThat(columnsOf("ai_provider_config")).contains("vision_model");
         assertThat(columnsOf("ai_user_key"))
                 .contains("user_id", "provider_code", "api_key_cipher", "vision_model");
+        assertThat(columnsOf("ai_evaluation_run"))
+                .contains("dataset_version", "candidate_label", "average_quality_score",
+                        "estimated_input_tokens", "estimated_output_tokens",
+                        "estimated_cost", "average_latency_ms", "p95_latency_ms");
+        assertThat(columnsOf("ai_evaluation_case_result"))
+                .contains("run_id", "case_id", "prompt_key", "prompt_version_id",
+                        "prompt_release_id", "quality_score", "concept_coverage",
+                        "estimated_input_tokens", "estimated_output_tokens",
+                        "estimated_cost", "end_to_end_latency_ms");
     }
 
     private Set<String> columnsOf(String tableName) {
