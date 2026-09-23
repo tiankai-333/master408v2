@@ -1,0 +1,306 @@
+# 范围与页面清单 — 旧管理端盘点、旧新映射与首版信息架构
+
+> **状态**：设计稿 v1.0（2026-09-23）。盘点与映射已完成；页面清单对应已确认的 A-01/A-03 决策。
+> 本文件是**设计基线**，不表示任何新页面已实现；标注 `[已有]` 的能力附代码依据，
+> `[待改]` / `[待新增]` 为实施 Feature 的任务，接口细节见 [`api-contract.md`](api-contract.md)。
+> **依据的代码提交**：`c2c0a84` + 工作区（19 项未提交改动，含 9.21 双端登录隔离实现）。
+> **依据的决策**：本 Feature `requirements.md` ADM-01/ADM-02；用户 2026-09-23 确认的
+> A-01（治理优先）、A-02（Vue 3 生态并行，详见 [`architecture-and-cutover.md`](architecture-and-cutover.md)）、
+> A-03（四区 + 工作台，桌面优先）、A-05（整体切换 + 回退窗口）。
+> **交叉契约**：[`../2026-09-20-database-architecture/data-contract.md`](../2026-09-20-database-architecture/data-contract.md)
+> （D-13～D-28、8.1 可承诺 / 8.2 不可承诺清单）、[`../2026-09-21-dual-client-account-conflict/requirements.md`](../2026-09-21-dual-client-account-conflict/requirements.md)（AUTH-01～AUTH-07）。
+
+## 0. 结论速览
+
+1. 旧管理端 12 个模块、33 条路由全部盘点完毕；**5 个模块从未进入菜单**（任务/学科/答卷/消息/日志），
+   **4 个页面调用后端不存在的 API**（答卷详情、消息详情、个人资料、最近动态），属"路由存在 ≠ 功能可用"的直接证据。
+2. A-01 拍板：**治理优先**——题库、试卷、任务、答卷（只读）、账户、学科、消息、日志、AI 三页保留重建；
+   开发者宣传页废弃；AI Agent 旧模板/知识库管理只读保留不重建；知识点人工标注、AI 用量明细、检索日志浏览器延后。
+3. 首版信息架构 = **工作台 + 四区**（内容治理 / 考试运营 / AI 治理 / 系统管理），桌面优先，窄屏折叠不丢操作。
+4. 首版**新增** 6 项旧端没有的管理能力：题目版本历史、来源面板、停用/恢复（含紧急撤下边界）、
+   RAG 索引状态页（展示/检索就绪分离）、资源可得性展示、工作台真实待办。每项均引用 9.20 已定稿契约，
+   不在前端另造事实语义。
+5. A-04 状态：9.20 的 Q-08～Q-12 已于 2026-09-23 拍板（D-23～D-28），物理落点已在
+   `physical-design.md` 第 10～13 节定稿 → **对本设计的阻塞已解除**；剩余开放项
+   （迁移阈值 D-11、简答空答案成因 D-28 成因确认、全库量化 U-9/U-10）只影响实施验收，不影响本设计定稿。
+
+---
+
+## 1. 盘点口径与证据
+
+- 路由：`apps/frontend/admin/src/router/index.js`（330 行，逐条通读）；`hidden: true` = 不进侧边栏但仍可 URL 直达。
+- 页面：`src/views/**` 逐文件阅读；API 层：`src/api/*.js` 全部导出函数与 URL。
+- 后端：`controller/admin/**` 42 个 Controller、`configuration/spring/security/**` 15 个类，
+  角色校验仅有 URL 级 `/api/admin/**` → `ROLE_ADMIN`（`SecurityConfigurer.java:118-120`），**无任何方法级 `@PreAuthorize`**。
+- 可用性判定分四档：
+
+| 档 | 含义 |
+| --- | --- |
+| **可用** | 前端调用与后端 Controller 一一对应，主流程可走通 |
+| **部分可用** | 页面可达、列表可用，但存在缺陷（见 §2.3 缺陷清单） |
+| **已损坏** | 调用了后端不存在的 API，运行时报错 |
+| **死代码** | 路由/组件存在但无入口引用，或依赖从未注册的全局能力 |
+
+---
+
+## 2. 旧管理端完整盘点
+
+### 2.1 路由 → 页面 → API 总表
+
+| 旧路由 | 页面 | 主要 API（`/api/admin` 前缀省略） | 可用性 |
+| --- | --- | --- | --- |
+| `/login` | 登录卡 | `POST /login`（9.21 后已是端专属入口） | 可用 |
+| `/dashboard` | 主页：4 统计卡 + 2 折线图 | `POST /dashboard/index` | 可用（统计字段真实，图表为月度计数） |
+| `/user/student/list` | 学生列表 | `POST /user/page/list`（role=1）、`/user/changeStatus/{id}`、`/user/delete/{id}` | 可用（含调试残留 `console.log`） |
+| `/user/student/edit` | 学生编辑 | `POST /user/edit`、`/user/select/{id}` | 可用 |
+| `/user/admin/list` | 管理员列表 | 同上（role=3） | 可用 |
+| `/user/admin/edit` | 管理员编辑 | 同上 | 可用 |
+| `/exam/paper/list` | 试卷列表 | `POST /exam/paper/page`、`/exam/paper/delete/{id}` | 可用 |
+| `/exam/paper/edit` | 试卷编辑（标题分组+选题弹窗） | `POST /exam/paper/edit`、`/select/{id}`、`/list`、`question/page`、`question/select/{id}` | 可用（日期格式缺陷） |
+| `/exam/question/list` | 题目列表 | `POST /question/page`、`/question/delete/{id}`、`/question/select/{id}` | 可用（题型 3/4 标签与后端相反，D-22） |
+| `/exam/question/edit/singleChoice` | 单选题编辑 | `POST /question/edit`、`/question/select/{id}` | 部分可用（无图片、无版本号、无 itemUuid） |
+| `/exam/question/edit/multipleChoice` | 多选题编辑 | 同上 | 部分可用（同上；真实库 0 行） |
+| `/exam/question/edit/trueFalse` | "判断题"编辑（实际提交 questionType=4） | 同上 | **语义损坏**（D-22：与后端编码相反） |
+| `/exam/question/edit/gapFilling` | "填空题"编辑（实际提交 questionType=3） | 同上 | **语义损坏**（D-22） |
+| `/exam/question/edit/shortAnswer` | 简答题编辑 | 同上 | 部分可用（答案被 `varchar(255)` 截断风险） |
+| `/task/list` | 任务列表 | `POST /task/page`、`/task/delete/{id}` | 可用（菜单外） |
+| `/task/edit` | 任务编辑 | `POST /task/edit`、`/select/{id}`、`exam/paper/list` | 部分可用（新建时试卷下拉恒空） |
+| `/education/subject/list` | 学科列表 | `POST /education/subject/page`、`/delete/{id}` | 可用（菜单外） |
+| `/education/subject/edit` | 学科编辑 | `POST /education/subject/edit`、`/select/{id}` | 可用（菜单外） |
+| `/answer/list` | 答卷列表 | `POST /examPaperAnswer/page` | 可用（菜单外） |
+| `/answer/detail` | 答卷详情（阅卷回显） | 调用 `answerApi.select` → **后端无此接口** | **已损坏** |
+| `/message/list` | 消息列表 | `POST /message/page`；详情调用 `messageApi.select` → **后端无此接口** | **部分损坏**（列表可用、详情报错） |
+| `/message/send` | 消息发送 | `POST /message/send` | 可用（菜单外） |
+| `/log/user/list` | 用户日志 | `POST /user/event/page/list` | 可用（菜单外；从学生列表"日志"按钮进入时带 `userId`） |
+| `/ai/config` | 密钥与用量 | `POST /ai-config/providers`、`/provider/save`、`/provider/{id}/test`、`/provider/delete/{id}`、`/usage` | 可用 |
+| `/ai/prompt-studio` | Prompt Studio（版本/发布/审计三页签） | `GET/POST /prompt-ops/definitions`、`/versions/*`、`/definitions/{key}/rollback`、`/kill-switch` 等 13 个 | 可用（两个 loading 状态缺陷） |
+| `/ai/evaluation` | 固定评测（数据集/启动/记录/对比） | `GET/POST /ai-evaluation/dataset`、`/runs`、`/runs/{id}`、`/compare` | 可用（3s 轮询） |
+| `/developer` | 开发者说明（16 节静态页） | 无 API | 死重（纯宣传，内含硬编码接口清单） |
+| `/developer/poster` | 项目易拉宝（打印） | 无 API | 死重 |
+| `/profile` | 个人简介（用户卡+账户+动态） | 账户保存调用 `user.updateProfile` → **后端无此接口**；动态调用 `log.recent` → **后端无此接口** | **已损坏**（仅用户卡可用） |
+| `/redirect/:path*` | 刷新中转 | — | 基础设施，保留 |
+| `/:pathMatch(.*)*` | 404 页 | — | 基础设施，保留 |
+| （无路由） | `views/error-page/401.vue` | — | 死代码（无路由引用） |
+
+**菜单外模块**：`/task`、`/education`、`/answer`、`/message`、`/log` 五个父路由 `hidden: true`——
+整模块功能存在但从不显示在侧边栏，只能靠 URL 或列表页按钮（学生列表→日志）进入。
+这与"路由存在不等于功能已验证可用"（requirements 前置成果）一致。
+
+### 2.2 旧侧边栏实际菜单（对照用）
+
+```text
+主页 /  学生列表 /  管理员列表 /  试卷列表 /  题目列表 /  AI 运维中心（密钥与用量、Prompt Studio、固定评测）
+```
+
+菜单按"表"组织（学生、管理员、试卷、题目各占一项），无职责分区；这就是 ADM-02
+"不以旧菜单为新信息架构"要纠正的对象。
+
+### 2.3 旧端缺陷清单（重建时必须消除，不得原样带入）
+
+| # | 缺陷 | 证据 | 新端处置 |
+| --- | --- | --- | --- |
+| D-22 | 题型 3/4 编码与管理端相反（3=判断、4=填空以后端为准） | `list.vue:97-98`、`paper/edit.vue:136-137`、`gap-filling.vue:55`、`true-false.vue:53`；`QuestionTypeEnum.java:10-11` | 新端统一 3=判断、4=填空（9.20 D-22） |
+| 2 | 退出只清 Cookie 不调 API，服务端会话仍在 | `layout/index.vue:116-119`（真正调 `/api/admin/logout` 的 `Navbar.vue` 未被使用） | 新端退出必调 `/api/admin/logout`（AUTH-02） |
+| 3 | 无客户端权限模型，路由守卫只做进度条与标题 | `main.js:29-42`；全仓无 `v-permission`/role 检查 | 前端仅做菜单显隐（体验层），权限由后端 `/api/admin/**` 强制（ADM-08） |
+| 4 | HTTP 状态码错误落入通用 catch，只弹笼统错误 | `utils/request.js`（无 axios 拦截器，仅判 body `code`） | 新端统一响应/HTTP 双层处理（`api-contract.md` §2） |
+| 5 | Element Plus 日期格式用 Element-UI 旧 token | `paper/edit.vue:16`、`task/edit.vue:14,19`、`user/*/edit.vue:23` | 新端统一 `YYYY-MM-DD HH:mm:ss` |
+| 6 | 答卷详情/消息详情/个人资料/动态 4 处调用不存在的 API | `answer/detail.vue:80`、`message/list.vue:73`、`profile/Account.vue:74`、`profile/Timeline.vue:24` | 按映射表分别修复或废弃 |
+| 7 | 编辑器无版本号提交（乐观并发无从谈起）、无 itemUuid、无图片上传 | 五处 `form` 均无 `expectedVersion`/`itemUuid`；无上传组件引用 | 新编辑器携带 `expectedVersion`（D-16）；填空项标识=数组下标；图片走资源引用（D-26） |
+| 8 | Prompt Studio 两个 loading 状态写 `.value` 到已解包属性，转圈不停 | `prompt-studio.vue:307`、`:384` | 重建时消除 |
+| 9 | 任务编辑新建时试卷下拉恒空 | `task/edit.vue:125-138`（仅编辑分支加载） | 新任务表单创建即加载试卷列表 |
+| 10 | 后端 `/api/admin/upload/configAndUpload`（UEditor 协议）在匿名白名单 | `application.yml:53` | 新端不使用 UEditor；该白名单项列入退役清单（`architecture-and-cutover.md` §4.2） |
+| 11 | 学生列表遗留调试输出 | `user/student/list.vue:83-85` | 重建消除 |
+
+---
+
+## 3. 旧 → 新映射清单（ADM-01）
+
+去向四类：**保留重建**（首版新端重写）、**合并**（多旧页并入一新页）、**延后**（首版不做，登记条件）、
+**废弃**（不再提供，说明数据/入口处置）。每项给出理由与调用依赖。
+
+### 3.1 认证与会话
+
+| 旧能力 | 去向 | 理由与调用依赖 |
+| --- | --- | --- |
+| `/login` + `POST /api/admin/login` | **保留重建** | 9.21 已定契约：新端必须用 `/api/admin/login` 与 `/api/admin/logout`，会话按端分区（`ClientScopedSecurityContextRepository`），remember-me Cookie 为 `remember-me-admin`。登录页增加"会话过期/401 统一跳转"行为（ADM-08） |
+| 退出（旧端只清 Cookie） | **保留重建**（修正） | 必须调用 `POST /api/admin/logout`（端级清理，不影响学生端），成功后再清本地状态 |
+| `adminUserName`/`adminUserInfo` Cookie 存用户信息 | **废弃** | 用户信息改由 Pinia 内存态 + `POST /user/current` 拉取；不再把后端响应整串写进 Cookie |
+
+### 3.2 工作台概览
+
+| 旧能力 | 去向 | 理由与调用依赖 |
+| --- | --- | --- |
+| `/dashboard` 4 统计卡（试卷/题目/答卷/答题总数） | **保留重建**（并入工作台） | 数据源 `POST /dashboard/index` `[已有]`，字段真实（`DashboardController.java:34`） |
+| "用户活跃度 / 题目月数量"两折线图 | **保留**（同接口 `mothDay*` 字段） | 不新增数据采集体系；若实施时发现字段口径不明，允许首版只保留 4 张总数卡，图表降级为可选 |
+| 待处理事项 | **新增** | 内容 = 可查询的真实缺口：RAG 对账缺口数（应有投影 vs `indexed`，D-25 对账）、`failed` 索引数、停用题下游残留（7.3）、待人工阅卷答卷数（`status` 枚举）。数据来自 `[待新增]` `GET /api/admin/overview/todos`（`api-contract.md` §4.1）；**禁止虚构统计或伪造"健康"绿灯** |
+
+### 3.3 内容治理（题目域）
+
+| 旧能力 | 去向 | 理由与调用依赖 |
+| --- | --- | --- |
+| `/exam/question/list` 题目列表 | **保留重建** | 内容治理核心。新列表增加：版本号列、展示就绪/检索就绪摘要（D-25）、停用状态（D-21）、来源年份（D-18）。筛选增加题型（3=判断、4=填空）、状态、来源年份 |
+| 5 个分题型编辑页 | **合并重建**为统一题目编辑器 + 五题型表单变体 | 结构共享（学科/难度/分值/题干块/资源/保存），差异收敛为表单变体（选项组、判断组、填空组、简答答案）。修正 D-22 编码；提交 `expectedVersion`（D-16）；块结构遵循 D-23 `content_blocks` schema；保存失败保留输入（D-15） |
+| 题目预览（`QuestionShow` + `QuestionHtml` 资产内联） | **保留重建** | `data-src`/`data-fallback` 内联语义是现行展示事实（A-07b），新端预览沿用同一规则；资源可得性缺失时显式标"资料未就绪"（D-25/D-26），不用降级文本冒充原图 |
+| 题目删除（软删 `deleted`） | **改造为停用/恢复**（D-21） | `deleted` 真实库 0 行、语义不可验证（A-01/A-09）；物理设计已定 `t_question.status` 1=正常/2=停用/3=紧急撤下 + 留痕三列（`physical-design.md` §7）。新端提供停用（需确认+原因）、恢复、紧急撤下（独立操作、独立确认） |
+| 版本历史 | **新增** | `question_content` 追加式版本行 `[已确认]`（T3-2）；管理端可读版本列表 + 当前指针 + `published` 标记（D-24）。接口 `[待新增]` |
+| 来源展示 | **新增** | D-18：展示 `question_source` 名称/年份/题号/原始引用；缺失显式为空。接口 `[待新增]`（`question_source` 应用层读为 0，属只写不读事实的首次接入） |
+| 知识点关联人工维护 | **延后** | D-20 需 `question_knowledge_point` 补 `source/update_user/update_time` 三列（`physical-design.md` §6，候选未实施）；且 643 条孤儿关系未隔离（A-04）。条件：9.20 实施 Feature 落地候选 6 后另立任务 |
+| 批量导入（`/question/upload` JSON 直插、`/question/upload/txt` AI 解析导入） | **延后** | 两入口均无事务保护（entry-inventory 第 5 节，TD 已登记）；契约要求"修复前不得作为契约已满足的证据"（`data-contract.md` 6.4）。条件：写入口事务修复 + 转换器（v1→canonical）落地 |
+| UEditor 富文本与 `/api/admin/upload/configAndUpload` | **废弃** | 旧端组件未使用（依赖列表无编辑器、`Ueditor` 包装组件死代码）；块内原文保留 HTML 直接编辑（D-23），不引入所见即所得编辑器 |
+
+### 3.4 考试运营
+
+| 旧能力 | 去向 | 理由与调用依赖 |
+| --- | --- | --- |
+| `/exam/paper/list` + `/edit`（标题分组、选题弹窗、时间窗） | **保留重建** | 接口 `[已有]`；选题弹窗排除停用/紧急撤下题（D-21：新组卷阻止）；日期格式修正 |
+| `/task/list` + `/edit` | **保留重建** | 接口 `[已有]`；修复创建时试卷下拉为空 |
+| `/answer/list` 答卷列表 | **保留重建** | 接口 `[已有]`（`/examPaperAnswer/page`） |
+| `/answer/detail` 答卷详情 | **保留重建**（接口 `[待新增]`） | 旧页已损坏；新详情按 D-17 展示：作答绑定的内容版本题面（"当时版本"）、无绑定版本的旧记录显式标"不可恢复"（D-06）、96 条无文本作答显示"该次作答无文本内容"（A-10 定性）。填空/简答"待人工阅卷"标识（恒 0 分事实，`data-contract.md` 5.4/5.5） |
+| 管理端阅卷/评分写操作 | **延后** | 后端无任何评分端点（WX `/judge` 存在但属小程序端）；首版答卷管理只读。条件：另立评分 Feature |
+
+### 3.5 AI 治理
+
+| 旧能力 | 去向 | 理由与调用依赖 |
+| --- | --- | --- |
+| `/ai/config` 模型供应商配置（列表/新增/编辑/测试/删除/启停） | **保留重建** | 接口 `[已有]`；启停改用行内确认（旧端直接重提交全量对象）；API Key 仅掩码展示 |
+| `/ai/config` 用量分析（汇总/按供应商/最近日志） | **保留重建** | 接口 `[已有]`（`/usage`，窗口 ≤365 天） |
+| AI 用量明细浏览器（`t_ai_usage_log` 逐条，含 requestId/engine/首 token） | **延后** | 后端 `AiAgentService.getUsageLogs` 已实现但无 Controller（服务/接口脱节）；V4 可观测字段无管理端查询。条件：后端补只读端点（`[待新增]`，工作量小，可与工作台待办同批） |
+| `/ai/prompt-studio` Prompt 全生命周期 | **保留重建** | 接口 `[已有]`（13 个端点，V2 状态机）；修复 loading 缺陷；危险操作（promote/rollback/kill-switch）确认分级升级（ADM-09） |
+| `/ai/evaluation` 固定评测 | **保留重建** | 接口 `[已有]`；保留费用警示与轮询；对比图保留数字表格（不新增图表装饰） |
+| `/ai/config/rag/index` 索引构建触发 | **保留重建**（旧端无按钮，仅开发者页文字提及） | 接口 `[已有]`（`AiConfigController.java:80`）；新端成为唯一 UI 入口，带 `force`/范围参数与结果回显 |
+| `/ai-config/rag/search` 检索冒烟 | **保留**（并入 RAG 状态页工具区） | 接口 `[已有]`（`:147`） |
+| RAG 索引状态页 | **新增** | 落实 D-25/ADM-06：`display_ready` 与 `retrieval_ready` 两状态、`source_content_version`、`failed`+`error_message` 重试入口、对账缺口清单。接口 `[待新增]`（后端现状无任何 RAG 状态读端点） |
+| AI Agent 旧模板/知识库/调整日志（`/api/admin/ai-agent/*`） | **只读保留，不重建页面** | TD-003 双链路遗留；PromptOps 已是治理主线。首版保留后端接口但新端不提供入口；退役评估见 `architecture-and-cutover.md` §4.2 |
+| 模型/技能/Agent 配置（`ai_agent`/`ai_skill`/`ai_tool` 表） | **延后** | 表存在但无管理端点（schema-only + runtime-only）；Phase 7 统一路由与 Tool 治理后另议 |
+
+### 3.6 系统管理
+
+| 旧能力 | 去向 | 理由与调用依赖 |
+| --- | --- | --- |
+| 学生列表 + 管理员列表 | **合并**为账户管理页 | 同一 `t_user` 表、同一组接口（`role` 参数区分 1/3）；消除两套重复页面。操作：启停、编辑、重置密码（`/user/resetPassword` `[已有]`）、日志跳转 |
+| 学生/管理员编辑页 | **合并**为账户编辑 | 同上 |
+| `/education/subject/*` 学科管理 | **保留重建** | 接口 `[已有]`；题量引用计数展示延后（后端无该查询） |
+| `/message/list` 消息列表 | **保留重建** | 列表 `[已有]`；详情 `[待新增]`（修 `messageApi.select` 断链） |
+| `/message/send` 消息发送 | **保留重建** | 接口 `[已有]`；发送前确认（广播不可撤回：后端无删除端点，须在确认框明示） |
+| `/log/user/list` 用户日志 | **保留重建**（并入系统管理区） | 接口 `[已有]`；支持按操作人/类型/时间筛选 |
+| `/profile` 个人中心 | **缩为最小** | 仅当前用户卡 + 退出。修改资料/改密（`updateProfile` 断链）废弃——管理员改密走账户管理页的"重置密码"；自助改密延后 |
+| `/developer` + `/developer/poster` | **废弃** | 纯静态宣传页，无业务调用；内容归档到仓库文档（部署说明类并入 Phase 8 公开证明材料 `2026-09-23-public-deploy`）。硬编码接口清单一并废弃（其"接口概览"与真实代码漂移，本身就是重复事实源） |
+
+### 3.7 映射完整性核对（无解释遗漏声明）
+
+旧 33 条路由逐条归类：保留重建 14、合并 6→3、废弃 4（developer×2、UEditor、用户信息 Cookie）、
+缩为最小 1（profile）、只读保留 0 页（ai-agent 无页面）、基础设施保留 2（redirect、404）；
+另新增 6 项能力（§0.4）。旧端全部后端调用点（含 4 个断链）均已出现在上表或 `api-contract.md` 矩阵中，
+无未解释的调用依赖。
+
+---
+
+## 4. 首版信息架构与导航（ADM-02，A-03 已确认）
+
+### 4.1 导航树（新管理端）
+
+```text
+408master 管理控制台
+├─ 工作台  /                        （概览 + 待办）
+├─ 内容治理
+│   ├─ 题目列表      /questions          （列表 + 预览抽屉）
+│   ├─ 题目编辑      /questions/:id/edit （编辑；新建为 /questions/new）
+│   ├─ 题目版本历史  /questions/:id/versions（详情型；编辑器内入口）
+│   └─ RAG 索引状态  /content/rag-index  （运行记录型；含对账与重建）
+├─ 考试运营
+│   ├─ 试卷管理      /papers             （列表；编辑为 /papers/:id/edit）
+│   ├─ 任务管理      /tasks              （列表；编辑为 /tasks/:id/edit）
+│   └─ 答卷管理      /answers            （列表；详情为 /answers/:id，只读）
+├─ AI 治理
+│   ├─ 模型与用量    /ai/providers       （配置 + 用量两卡）
+│   ├─ Prompt Studio /ai/prompts         （版本/发布/审计三页签）
+│   └─ 固定评测      /ai/evaluation      （数据集/运行/对比）
+└─ 系统管理
+    ├─ 账户管理      /accounts           （role 筛选：学生/管理员）
+    ├─ 学科管理      /subjects
+    ├─ 消息中心      /messages           （列表 + 发送 + 详情）
+    └─ 操作日志      /logs
+```
+
+- 菜单即职责：四个区对应 `requirements.md` 候选信息架构的五个功能区（工作台独立成区）。
+- 编辑页不占菜单（`hidden`），列表行内进入、面包屑/返回按钮回列表（入口与返回路径固定，见 4.2）。
+- 知识点管理、AI 用量明细、检索日志浏览器为**延后项**，导航中不出现占位菜单。
+
+### 4.2 页面清单（首版全部页面，ADM-02）
+
+| # | 页面 | 类型 | 职责 | 入口 | 返回路径 | 依赖接口数（已有/待新增） |
+| --- | --- | --- | --- | --- | --- | --- |
+| P1 | 工作台 | 概览 | 真实统计 + 待办清单（每条待办可跳转对应处理页） | 登录后默认 | — | 1 已有 + 1 待新增 |
+| P2 | 题目列表 | 列表 | 筛选（ID/关键词/学科/题型/状态/来源年份/就绪状态）、分页、预览、停用/恢复、进入编辑 | 菜单 | — | 1 已有（待改）+ 2 待新增（就绪摘要并入列表或独立批量查询） |
+| P3 | 题目编辑 | 编辑 | 五题型表单变体 + 块编辑（题干/材料/小问/答案/解析）+ 资源引用 + 来源面板 + 保存/冲突 | P2 行内"编辑"、菜单"新建" | 面包屑或"返回列表"（有未保存输入时拦截） | 2 已有（page/select/edit）+ 2 待新增（版本读、来源读） |
+| P4 | 版本历史 | 详情 | 版本行列表（版本号/current/published/时间/操作人）、任一版本只读预览、与当前版差异 | P3"历史版本"、P2 行内 | 返回编辑/列表 | 1 待新增 |
+| P5 | RAG 索引状态 | 运行记录 | 两状态矩阵、按题查询、failed 明细+重试、对账缺口、触发构建、检索冒烟 | 菜单 | — | 2 已有（index/search）+ 2 待新增（状态查询、对账） |
+| P6 | 试卷管理 | 列表+编辑 | 列表、试卷编辑器（标题分组、选题、时间窗） | 菜单 | 返回列表 | 5 已有 |
+| P7 | 任务管理 | 列表+编辑 | 任务列表、任务编辑（试卷选择、时间窗） | 菜单 | 返回列表 | 4 已有 |
+| P8 | 答卷管理 | 列表+详情 | 答卷列表（只读）、答卷详情（绑定版本题面回显、不可恢复标记） | 菜单 | 返回列表 | 1 已有 + 1 待新增 |
+| P9 | 模型与用量 | 配置+运行记录 | 供应商 CRUD/测试/启停、用量汇总/按供应商/最近日志 | 菜单 | — | 5 已有 |
+| P10 | Prompt Studio | 版本控制台 | 定义列表、版本状态机操作、灰度/回滚/Kill Switch、审计 | 菜单 | — | 13 已有 |
+| P11 | 固定评测 | 运行记录 | 数据集、启动评测（费用确认）、运行列表/详情、对比 | 菜单 | — | 5 已有 |
+| P12 | 账户管理 | 列表+编辑 | 学生/管理员账户、启停、重置密码、编辑 | 菜单 | 返回列表 | 7 已有 |
+| P13 | 学科管理 | 列表+编辑 | 学科 CRUD | 菜单 | 返回列表 | 4 已有 |
+| P14 | 消息中心 | 列表+发送+详情 | 消息列表、广播发送（不可撤回确认）、详情查看 | 菜单 | 返回列表 | 2 已有 + 1 待新增 |
+| P15 | 操作日志 | 列表 | 登录/登出等用户事件，按人/类型筛选 | 菜单 | — | 1 已有 |
+| P16 | 登录页 | 表单 | 管理端登录（`/api/admin/login`） | 未访问受保护路由时 | 登录前目标页 | 1 已有 |
+
+统计：**16 个页面**；依赖接口约 38 个已有 + 约 9 个待新增/待改（逐条见 `api-contract.md`）。
+
+### 4.3 首版边界（A-01 结论记录）
+
+- **不做**（本设计明确排除，防止范围蔓延）：复杂权限/角色编辑器/SSO（requirements 边界）、
+  素材库与批量上传后台（D-19）、草稿箱/审校流（D-24 不做）、管理端阅卷写操作、
+  知识点人工标注（延后）、AI 用量明细与检索日志浏览器（延后）、AI Agent/技能配置（延后）、
+  移动端专属布局（窄屏可达即可）。
+- **冻结对象**：旧管理端 `apps/frontend/admin` 进入维护冻结——除阻断性缺陷外不再新增功能
+  （与路线图 Phase 3 冻结规则一致）。
+- **不以生成页面为完成条件**：本 Feature 交付设计基线；实施另立 Feature
+  （切换与就绪条件见 `architecture-and-cutover.md`）。
+
+---
+
+## 5. 依赖关系
+
+### 5.1 对学生端的依赖（只读引用，不修改学生端）
+
+| 依赖 | 内容 | 管理端设计的影响 |
+| --- | --- | --- |
+| 读路径未收口 | Q-3～Q-8/Q-10 仍读旧 JSON 与 `t_question.correct`（`data-contract.md` 6.2） | 在读路径切换（R-1～R-2）前，管理端保存必须维持同事务双写；新编辑器不得假设"读的是新表"（8.2 第 3 项：选项读侧未收口） |
+| 静态资产路径 | 学生端以 `/student/…` 提供题图等静态资产（旧端 `QuestionHtml.resolveAssetUrl` 把 `question-html/…` 映射到 `/student/…`） | 新管理端预览沿用同一 URL 规则；资产目录在仓库外且受 `.gitignore` 排除（TD-015），可得性状态以校验为准（D-26） |
+| 认证共存 | 双端同浏览器并存（AUTH-01～AUTH-06） | 新端只影响 admin 分区；联调走查含"管理员退出学生不受影响"（validation 场景 1） |
+
+### 5.2 对 9.20 数据库契约的依赖（引用，不复制）
+
+| 页面 | 引用契约 | 状态 |
+| --- | --- | --- |
+| 编辑/保存 | D-13～D-16（current 唯一、乐观并发、冲突保留输入）、6.1 写侧事务 | 已定稿；实施依赖候选 DDL 与锁顺序（`physical-design.md` §2/§5） |
+| 版本历史 | D-02/D-24（版本行 + `published` 标记） | 已定稿（物理列见候选 8） |
+| 停用/恢复 | D-21 + 7.1～7.3 逐场景 + `status` 1/2/3 与留痕列 | 已定稿（物理列见候选 §7；下游标记+读时过滤属实施） |
+| 来源面板 | D-18 + `question_source` 字段表（3.5） | 已定稿；`paper_name` 非空率未采样 → 按可空展示 |
+| 资源与预览 | D-19/D-26（引用+校验+归属+可得性）+ `question_asset` 候选 9 列 | 已定稿；资源写入者（TD-016）属实施 |
+| RAG 状态页 | D-25 + 4.6 降级矩阵 + 候选 10 列（`display_ready`/`retrieval_ready`/`source_content_version`/`gen_rule_version`） | 已定稿；"向量未就绪 ≠ 无可用证据"区分必须体现在 UI 文案 |
+| 简答题 | D-28：空答案为合法状态，展示"待补充"不告警 | 已定稿；成因确认（业务无答案 vs 漏采）在实施前由内容负责人定，影响是否补采流程页 |
+| 块编辑器 | D-23 + 3.9 块模型 + `content_blocks` JSON schema（候选 7） | 已定稿；`*_text` 由后端按规则重算，前端不提交纯文本投影 |
+| 历史答卷 | D-17/D-06（绑定版本展示；不可恢复显式标记） | 已定稿；绑定实施采用候选 3b（版本快照映射） |
+
+### 5.3 对 9.21 认证契约的依赖
+
+新端登录/退出/会话恢复全部走 admin 端专属入口与会话分区；不重新设计身份系统、不做 JWT、
+不改角色模型（多角色规则仍属 TD-001）。
+
+### 5.4 对 AI 模块的依赖
+
+PromptOps（V2 状态机）、评测（V3 数据集与运行表）、用量（V4 可观测字段）、RAG（V1 投影表 + V5 词法索引）
+均沿用现有引擎；新端只新增**读侧**管理界面（RAG 状态、对账），不重建任何引擎，
+不改动检索权重与触发策略（Phase 4 范围）。
+
+---
+
+## 6. 变更记录
+
+| 日期 | 变更 | 依据 |
+| --- | --- | --- |
+| 2026-09-23 | 初稿：盘点、映射、导航、页面清单定稿；A-01/A-03 用户确认 | 双端代码盘点（提交 `c2c0a84` + 工作区）；用户决策 2026-09-23 |
