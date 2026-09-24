@@ -48,6 +48,7 @@
 | 可用国内渠道 | ① 自有 ACR（VPC 内网，业务镜像中转，单仓库）；② mindskip 公共 ACR 仓库（`mysql:8.0.33`，v1 验证可用）；③ `mirrors.aliyun.com/alpine`（rootfs 与 apk 包，用于自研基础镜像） | 实测/设计 |
 | 服务器 Docker | 2026-09-24 已安装 docker-ce 26.1.3（aliyun docker-ce repo）；daemon.json 仅配专属加速器 | 执行记录 |
 | 本机 Docker | Docker Desktop（WSL2 引擎）；修改 daemon.json 后必须整体重启引擎（含 docker-desktop WSL 发行版）才生效，只重启 UI 进程无效 | 执行记录 |
+| 数据库初始化前提 | `V1__baseline.sql` 非自足（空库执行 1146 失败：假设 legacy 表先行存在，开发库均为老库故未暴露）；干净环境部署必须先经 initdb 导入遗留全量 SQL（`deploy/sql-init/`，副本源于 `master408/database/current`）。迁移脚本自足性问题已留档，归属 9.20/Phase-2 评估；本 Feature 不改写已提交迁移 | 本地演练实测（2026-09-24） |
 
 由此确定的镜像供应链（PD-16 执行方案，任何环节不得引入 Docker Hub 直连或代理）：
 

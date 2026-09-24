@@ -37,22 +37,30 @@
 
 ## 2. 部署产物与本地演练
 
-- [ ] 确认 A-03（构建分发方式）、A-07（产物位置）后编写产物：后端镜像 Dockerfile（多阶段、
+- [x] 确认 A-03（构建分发方式）、A-07（产物位置）后编写产物：后端镜像 Dockerfile（多阶段、
   非 root、不携带构建密钥）、前端构建产物、`deploy/` 下 compose 生产文件、nginx 配置
-  （`/student/`、`/admin/`、`/api/` 含 SSE 透传）、`.env.example`。
-- [-] **按 PD-16 落地镜像链路（用户硬性要求：不走 Docker Hub 直连、不用代理、ACR 单仓库中转）**：
-  2026-09-24 实测后定案——基础镜像自建（`deploy/build-base-images.sh`，原料 mirrors.aliyun.com/alpine，
-  产出 m408base 三件套）；nginx 用本机既有 1.25-alpine；mysql 用 mindskip 公共 ACR 8.0.33；
-  业务镜像单仓库 `master408` 的 `backend-*/web-*` tag。加速器仅白名单命中时可选（nginx）。
-  ECS 已装 docker-ce 26.1.3 并配加速器；待办：本机/ECS 各跑一次基座脚本、ECS 验证 mindskip mysql 拉取。
-- [ ] 在 compose 中加入 v2 必需的 Redis 服务；MySQL、Redis、Qdrant、Actuator 端口不映射公网。
-- [ ] 编写内存分配表（PD-02）：每服务 mem_limit、JVM 堆上限、MySQL buffer pool、Redis maxmemory、
-  swap 预留；标注 Qdrant 关闭/开启两套形态的差值。
-- [ ] 本地演练：同一套 compose（仅改环境注入方式）在本机或演练容器跑通全栈——迁移执行、
-  双端登录、刷题主流程、AI 对话；分别验证 Qdrant 关闭（词法回退）与开启两态。
-- [ ] 演练中记录真实 RSS 与磁盘占用，回填内存分配表；不足则回到上一步调整，不上服务器硬试。
+  （`/student/`、`/admin/`、`/api/` 含 SSE 透传）、`.env.example`。（2026-09-24 完成）
+- [x] **按 PD-16 落地镜像链路（用户硬性要求：不走 Docker Hub 直连、不用代理、ACR 单仓库中转）**：
+  2026-09-24 定案并执行——基础镜像自建 `m408base:{alpine3.20,jre21,redis7}`
+  （`deploy/build-base-images.sh`，原料 mirrors.aliyun.com/alpine，本机构建成功）；
+  nginx 用本机既有 1.25-alpine；mysql 用 mindskip 公共 ACR 8.0.33；业务镜像单仓库
+  `master408` 的 `backend-*/web-*` tag（演练构建用 `rehearsal-N` 标记，发布 tag 部署日现切）。
+  ECS 已装 docker-ce 26.1.3；加速器白名单实测（仅 nginx 类热门），不再作为依赖。
+- [x] 在 compose 中加入 v2 必需的 Redis 服务；MySQL、Redis、Qdrant、Actuator 端口不映射公网。
+  **发现并修复：V1__baseline.sql 非自足**（假设 legacy 表存在，空库执行 1146 失败）——compose 挂载
+  `deploy/sql-init/`（副本源于 master408/database/current，gitignored）作 initdb.d 前置；
+  迁移脚本自足性问题已留档，归属 9.20/Phase-2 评估（本 Feature 不改写已提交迁移）。
+- [x] 编写内存分配表（PD-02）：`deploy/MEMORY-BUDGET.md`，含 Qdrant 关/开两态；**已回填本机实测**
+  （态一合计 ~875 MiB；态二 qdrant 空索引 51.5 MiB），服务器部署后复测。
+- [x] 本地演练（2026-09-24）：compose 两态全部跑通——SQL 初始化 + Flyway V1~V5 全部 success、
+  双端页面 200、登录 API 返回业务响应（`code:402 用户名或密码错误`，端到端贯通）、
+  AI 接口未登录返回 401 不挂起。**AI 真实调用未验证**（演练用假 Key + legacy 引擎，
+  真实 Key/引擎选择属部署日决策，记入 README 待办）。
+- [x] 演练中记录真实 RSS 并回填内存分配表；无超预算项，无需调整。
 
-完成条件：产物齐备且本地两态演练通过；内存分配表有实测支撑；`.env.example` 无真实值。
+完成条件已满足（2026-09-24）：产物齐备且本地两态演练通过；内存分配表有本机实测支撑；
+`.env.example` 无真实值。遗留至后续组：AI 真实调用验证（部署日）、服务器复测内存、
+ECS 侧基座脚本执行与 mindskip mysql 拉取验证。
 
 ## 3. 公网安全加固
 
