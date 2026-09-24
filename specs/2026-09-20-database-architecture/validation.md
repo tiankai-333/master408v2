@@ -117,7 +117,7 @@ mvn -f apps/backend/backend-app/pom.xml test "-Dtest=QuestionContentConcurrencyT
 - 读路径切换与双写观察、旧结构退役步骤（D-27 阶段二之后）；
 - 停用传播的隔离库合成样本验证（pending-verification #16）；
 - 内容完整性全库量化（U-9）与选项互转逐字段人工对照（pending-verification #1/#2）；
-- 候选 7～10 的隔离库实验与正式 Flyway 迁移（`physical-design.md` 第 14 节）；
+- 候选 7～10 的隔离库实验与正式 Flyway 迁移（`physical-design.md` 第 15 节）；
 - 数值阈值（D-11）由实施前审计基线推导；
 - `DatabaseSchemaContractTest` 在具备 `DB_PASSWORD` 环境的补跑（见 2.1 红线记录）。
 

@@ -341,16 +341,43 @@ ALTER TABLE rag_embedding
 
 ## 14. 设计测试与红线复核（plan 第 3 组"候选约束隔离设计测试"项）
 
+## 14. 候选 11：D-30 AI 友好治理的结构增量（2026-09-24）
+
+随 D-29 新库引导一并落地；全部为增量变更，可回滚（删列/删表/删账号）。
+
+```sql
+-- ③ 血缘：导入批次登记 + 行级 batch_id
+CREATE TABLE import_batch (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  batch_tag VARCHAR(64) NOT NULL,
+  source_type VARCHAR(32) NOT NULL COMMENT 'crawler / manual_fix / …',
+  started_at DATETIME NULL,
+  finished_at DATETIME NULL,
+  note VARCHAR(255) NULL,
+  UNIQUE KEY uk_import_batch_tag (batch_tag)
+) COMMENT 'D-30③：导入批次；question_content / question_asset.batch_id 指向本表';
+ALTER TABLE question_content
+  ADD COLUMN batch_id BIGINT NULL COMMENT 'D-30③：写入批次（import_batch.id）',
+  ADD INDEX idx_question_content_batch (batch_id);
+-- question_asset 的 batch_id 与候选 9 的补列合并执行。
+```
+
+- ② 错误语义映射：约束命名规范（uk_/idx_/ck_）在候选 1～11 中已遵守；"错误码 → 业务语义"映射表作为引导 Feature 的交付文档（非 DDL）；
+- ⑥ 账号分级：reader（只读巡检）/ writer（导入与业务写入）/ admin（DDL，仅迁移窗口）——治理动作，非表结构；
+- 验收：D-30 七条逐条核对；候选 11 与候选 7～10 同批，隔离验证与正式迁移留在实施 Feature。
+
+## 15. 设计测试与红线复核（plan 第 3 组"候选约束隔离设计测试"项）
+
 - **候选约束隔离设计测试已存在**：`apps/backend/backend-app/src/test/java/com/mindskip/xzs/dbdesign/` 下
   `QuestionContentContractTest`（T1，显式建立并清理候选 DDL `current_question_id`/`uk_question_content_current`）、
   `QuestionContentConcurrencyTest`（T2，含 T2-5 真实写入流程并发）、`QuestionVersioningTest`（T3）、
   `QuestionBackfillIdempotencyTest`（T4）；只连隔离库 `master408_design_test`，写探针事务内回滚；
 - **主线契约测试保持现状断言**：`DatabaseSchemaContractTest` 只断言共享库 `master408_v2` 的现有结构
   （表清单等），**无任何候选 DDL 引用** → 满足"不让设计测试要求共享库提前升级"；
-- 候选 7～10 的**隔离验证留待实施 Feature**（与候选 3 的"开始作答"落库点同批）：本设计只承诺
+- 候选 7～11 的**隔离验证留待实施 Feature**（与候选 3 的"开始作答"落库点同批）：本设计只承诺
   语句可执行性与回滚动作（删列即可），不做提前实验——共享库结构不得因本 Feature 变动（红线 2）。
 
-## 15. 本批次未做与待验证（2026-09-23 更新）
+## 16. 本批次未做与待验证（2026-09-23 更新，2026-09-24 增补候选 11）
 
 - 未在共享库执行任何 DDL；未修改业务代码；
 - 未测候选 3 的真实写入路径（"开始作答"落库点尚不存在，实现阶段需先确定 3a/3b）；
