@@ -5,7 +5,7 @@
 > 不表示任何页面已实现。
 > **依据**：[`scope-and-pages.md`](scope-and-pages.md) 页面清单（P1～P16）、
 > [`api-contract.md`](api-contract.md) 契约矩阵、
-> [`../2026-09-20-database-architecture/data-contract.md`](../2026-09-20-database-architecture/data-contract.md)
+> [`../2026-09-20-database-architecture/data-contract.md`](../2026-09-20-database-architecture/appendix/data-contract.md)
 > （D-13～D-28、4.6 降级矩阵、6.4 生命周期、第 7 节停用、8.1/8.2 可承诺清单）、
 > [`../2026-09-21-dual-client-account-conflict/requirements.md`](../2026-09-21-dual-client-account-conflict/requirements.md)（AUTH-01～AUTH-06）。
 > 复杂题结构样本：第 43 题真题事实 + 原创夹具 FIXTURE-NOVA16-01（未核对原图，见 §5.5 口径）。

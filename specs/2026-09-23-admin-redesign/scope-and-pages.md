@@ -7,7 +7,7 @@
 > **依据的决策**：本 Feature `requirements.md` ADM-01/ADM-02；用户 2026-09-23 确认的
 > A-01（治理优先）、A-02（Vue 3 生态并行，详见 [`architecture-and-cutover.md`](architecture-and-cutover.md)）、
 > A-03（四区 + 工作台，桌面优先）、A-05（整体切换 + 回退窗口）。
-> **交叉契约**：[`../2026-09-20-database-architecture/data-contract.md`](../2026-09-20-database-architecture/data-contract.md)
+> **交叉契约**：[`../2026-09-20-database-architecture/data-contract.md`](../2026-09-20-database-architecture/appendix/data-contract.md)
 > （D-13～D-28、8.1 可承诺 / 8.2 不可承诺清单）、[`../2026-09-21-dual-client-account-conflict/requirements.md`](../2026-09-21-dual-client-account-conflict/requirements.md)（AUTH-01～AUTH-07）。
 
 ## 0. 结论速览

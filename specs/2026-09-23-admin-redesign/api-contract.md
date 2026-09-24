@@ -4,7 +4,7 @@
 > 标注 `[已有]` 的条目附代码依据（当前主干可复核）；`[待改]` / `[待新增]` 为设计目标，
 > **实施 Feature 完成前一律视为不存在**。任何页面不得在端点落地前渲染为可用功能。
 > **依据**：[`scope-and-pages.md`](scope-and-pages.md) P1～P16、[`flows-and-wireframes.md`](flows-and-wireframes.md) F-01～F-16、
-> [`../2026-09-20-database-architecture/data-contract.md`](../2026-09-20-database-architecture/data-contract.md)
+> [`../2026-09-20-database-architecture/data-contract.md`](../2026-09-20-database-architecture/appendix/data-contract.md)
 > （D-13～D-28、第 8 节可承诺/不可承诺清单）、
 > [`../2026-09-21-dual-client-account-conflict/requirements.md`](../2026-09-21-dual-client-account-conflict/requirements.md)（AUTH 契约）。
 > **依据的代码**：`apps/backend/backend-app/src/main/java/com/mindskip/xzs/controller/admin/**`、
