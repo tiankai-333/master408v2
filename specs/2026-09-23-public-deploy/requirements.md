@@ -30,12 +30,18 @@
 - 安全隐患事实：`system.security-ignore-urls` 含 `/api/test/**`、`/api/admin/upload/configAndUpload`、
   `/api/admin/upload/auth`、`/api/student/user/register`；本地开发可接受，公网暴露前必须逐项审计。
 - Actuator/Micrometer 已引入依赖但未做暴露配置；健康检查端点现状未验证。
-- 目标服务器（本地运维记录 [server-inventory.local.md](../../docs/deployment/server-inventory.local.md)，
+- 目标服务器（本地运维记录 [server-inventory.local.md](../../deploy/local/server-inventory.local.md)，
   已由 `.gitignore` 排除）：阿里云 ECS `ecs.e-c1m1.large`，**2 vCPU / 2 GiB 内存 / 40 GiB 盘 /
   3 Mbps 固定带宽**，Alibaba Cloud Linux 3，公网 IP `8.130.53.51`，包年包月至 2027-05-25。
 - 2026-09-23 已用 root+密码 SSH 登录验证成功；登录横幅显示 904 次失败登录尝试与 46 条待更新安全公告。
 - 域名 `edu.wutiankai.cn` 已由用户解析至 `8.130.53.51`（用户 2026-09-23 确认，未独立复核 DNS 生效）。
 - 2 GiB 内存对 Java + MySQL + Redis + Qdrant + nginx 同机运行是紧约束，内存预算是本 Feature 的一级需求。
+- 镜像供应链事实（2026-09-23 实测）：本机 `docker build` 直连 `registry-1.docker.io` 超时失败——
+  **Docker Hub 在当前网络不可达**。用户明确要求（硬性约束）：本机与服务器均为**纯国内环境，不使用代理**，
+  任何构建与部署路径不得默认或回退到 Docker Hub 直连，也不得以代理为前提。
+  用户同时定位：**ACR 只是解决网速问题的中转**（用户 2026-09-23 决定单仓库方案，不为镜像体系建多仓库、
+  不做镜像托管备份；修改与备份都在本地）——自建镜像以 tag 前缀共用一个仓库；
+  基础镜像不进 ACR，由本机与服务器的 Docker daemon 配置**阿里云专属加速器**拉取（阿里云国内链路，非代理）。
 
 ## 必须满足的需求
 
@@ -56,6 +62,7 @@
 | PD-13 | 公开证明材料：部署文档、架构图、带日期环境的运行证据整理成对外可展示材料；演示指标可追溯到版本 | 文档与证据链接清单 |
 | PD-14 | 现状一致：文档区分已部署、已验证、未完成；不以本地演练冒充公网验证 | validation 逐项核对 |
 | PD-15 | 自我考核：作者独立解释部署链路、安全决策与故障行为 | validation 自我考核记录 |
+| PD-16 | **镜像供应链不依赖 Docker Hub 直连、不使用代理（用户硬性要求，纯国内环境）**：自建镜像（backend/web）的实际执行路径为本项目 ACR **单仓库**（tag 前缀 `backend-<sha>` / `web-<sha>` 区分）；基础镜像（JRE、nginx、mysql、redis、qdrant）的执行路径为**阿里云专属加速器**（本机与服务器 daemon.json 的 registry-mirrors，均为阿里云国内链路）；不建 base-* 仓库，不做镜像托管备份（用户定位：ACR 仅为中转） | 在本机与服务器各验证一次：docker 实际请求端点只含本项目 ACR 与阿里云加速器；构建/部署日志无 docker.io 直连请求 |
 
 ## 待确认决策
 
@@ -68,22 +75,25 @@
 - A-02 内存分配方案：推荐首期关闭 Qdrant（tech-stack 明确词法回退路径合法，Qdrant 属可重建投影）、
   配置受控 swap、保留 `AI_RAG_VECTOR_ENABLED` 开关；运行稳定后再评估升配或启用向量。
   备选是全栈极限压缩同跑，OOM 风险由用户承担。
-- A-03 镜像构建与分发：**已定稿（2026-09-23）**——本机构建 → push ACR 个人版（乌兰察布，
-  命名空间 `wutiankai`，仓库 `master408-backend` / `master408-web`，类型私有 + 本地仓库）→
-  服务器经 VPC 端点内网拉取。端点：本机推送用
+- A-03 镜像构建与分发：**已定稿（2026-09-23，按用户决定改为单仓库方案）**——本机构建 → push ACR 个人版
+  （乌兰察布，命名空间 `wutiankai`，**单仓库 `master408`**，私有 + 本地仓库；用户定位：ACR 仅为过网速的
+  中转，修改与备份在本地）→ 服务器经 VPC 端点内网拉取。镜像区分用 tag 前缀：
+  `master408:backend-<git短sha>`、`master408:web-<git短sha>`。已建的 `master408-web` 仓库废弃不用
+  （是否删除由用户决定）。端点：本机推送用
   `crpi-z118pytqkuhi1rn1.cn-wulanchabu.personal.cr.aliyuncs.com`；服务器拉取用
   `crpi-z118pytqkuhi1rn1-vpc.cn-wulanchabu.personal.cr.aliyuncs.com`（2026-09-23 服务器实测：
-  解析内网 IP 100.100.0.57、`/v2/` 返回 401，不占 3 Mbps 公网带宽）。tag 以 git 短 SHA 为主，
+  解析内网 IP 100.100.0.57、`/v2/` 返回 401，不占 3 Mbps 公网带宽）。
+  基础镜像（JRE/nginx/mysql/redis/qdrant）不进 ACR：本机与服务器 daemon.json 配阿里云专属加速器拉取。
   生产禁用 `:latest`；镜像不携带密钥；服务器 `docker login` 经 `--password-stdin` 注入，
   Registry 密码只存在于服务器 docker 凭据文件，不入仓库与文档。
 - A-04 管理端公网暴露：推荐 HTTPS + 强口令 + 限流公网可达；IP 白名单或隐藏前缀作为可选加固，
   不以后端授权已完备为由省略基线防护。
-- A-05 证书与备案：确认 `edu.wutiankai.cn` 的 ICP 备案状态（大陆服务器未备案时 80/443 会被阻断）；
-  证书推荐 certbot 容器或宿主机 acme.sh 二选一，含自动续期。
 - A-06 公网注册开放：`/api/student/user/register` 公开即接受垃圾注册与 AI 成本滥用风险；
   Demo 期是否开放注册、是否改为邀请/关闭，由用户决定。
-- A-07 产物与文档位置：推荐部署产物入仓库根 `deploy/`（结构参照 v1-reference/deploy 但重写内容），
-  部署文档与运行证据入 `docs/deployment/`（敏感事实只进 `*.local.md`）。
+- A-07 产物与文档位置：**已定稿（2026-09-23，消除双源）**——部署相关内容统一在仓库根 `deploy/`：
+  产物与编排在 `deploy/` 根，部署文档与使用说明为 `deploy/README.md`（第 5 组扩充），
+  本地运维记录（含基础设施地址、凭据相关事实）只进 `deploy/local/*.local.md`（`.gitignore` 排除）。
+  原 `docs/deployment/` 目录已退役并迁入 `deploy/local/`。
 
 ## 非目标
 

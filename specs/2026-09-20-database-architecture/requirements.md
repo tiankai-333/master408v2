@@ -1,14 +1,14 @@
 # Requirements — 数据库架构设计
 
-状态：**设计未完成**。运行时只读审计已执行（[`audit-report.md`](audit-report.md)）；
-隔离库设计测试 T1–T5 已执行并记录（[`design-test-plan.md`](design-test-plan.md) 第 5 节）；
-读写入口盘点完成（[`entry-inventory.md`](entry-inventory.md)）；数据契约初稿（[`data-contract.md`](data-contract.md)）；
-物理结构候选与隔离验证（[`physical-design.md`](physical-design.md)）；迁移方案与代表性演练
-（[`migration-plan.md`](migration-plan.md)、[`rehearsal-report.md`](rehearsal-report.md)）。
+状态：**设计未完成**。运行时只读审计已执行（[`audit-report.md`](appendix/audit-report.md)）；
+隔离库设计测试 T1–T5 已执行并记录（[`design-test-plan.md`](appendix/design-test-plan.md) 第 5 节）；
+读写入口盘点完成（[`entry-inventory.md`](appendix/entry-inventory.md)）；数据契约初稿（[`data-contract.md`](data-contract.md)）；
+物理结构候选与隔离验证（[`physical-design.md`](appendix/physical-design.md)）；迁移方案与代表性演练
+（[`migration-plan.md`](appendix/migration-plan.md)、[`rehearsal-report.md`](appendix/rehearsal-report.md)）。
 Q-01 至 Q-13 已**全部拍板**：Q-01～Q-07、Q-13 于 2026-09-21 拍板（D-13～D-22）；
-**Q-08～Q-12 于 2026-09-23 按 [`decision-recommendations.md`](decision-recommendations.md)
+**Q-08～Q-12 于 2026-09-23 按 [`decision-recommendations.md`](appendix/decision-recommendations.md)
 的推荐方案整体确认（D-23～D-27）**，简答题空答案口径为 D-28。
-第 43 题样本已核对（[`sample-2024-q43.md`](sample-2024-q43.md)，保真验证为"部分"，新发现 N-1～N-3）。
+第 43 题样本已核对（[`sample-2024-q43.md`](appendix/sample-2024-q43.md)，保真验证为"部分"，新发现 N-1～N-3）。
 **仍未收口**：第 3 节收尾设计（事务边界 DB-05/08、软删除下游失效语义、RAG 投影契约 DB-09、
 物理结构附录与候选约束设计测试）、第 5 节收敛（validation、管理端两份清单、文档同步、自我考核），
 见「本次设计的未完成项」。本轮只交付设计，不做迁移。
@@ -33,7 +33,7 @@ Q-01 至 Q-13 已**全部拍板**：Q-01～Q-07、Q-13 于 2026-09-21 拍板（D
 展示与 RAG 的需求分别设计：前者保留题意与排版，后者提供可检索且可追溯的表示；
 不得让两套内容独立修改后失去对应关系。具体权威格式及物理表结构仍需样本验证后决定。
 
-以 [复杂题目样本契约](sample-contract.md) 中的 2024 年 408 第 43 题为核心，
+以 [复杂题目样本契约](appendix/sample-contract.md) 中的 2024 年 408 第 43 题为核心，
 第 1 题为简单代码对照。此前误发的“劳动的本质、分类及作用”不作为样本或依据。
 
 保留现有 Hybrid RAG：MySQL 文档/Chunk、Qdrant 向量、词法与向量融合及引用链路。
@@ -115,9 +115,9 @@ Q-01 至 Q-13 已**全部拍板**：Q-01～Q-07、Q-13 于 2026-09-21 拍板（D
 ## 待决策项
 
 **当前无未决策项。** Q-01 至 Q-07 已于 2026-09-21 拍板（D-13 至 D-21）；
-Q-08 至 Q-12 已于 2026-09-23 按 [`decision-recommendations.md`](decision-recommendations.md)
+Q-08 至 Q-12 已于 2026-09-23 按 [`decision-recommendations.md`](appendix/decision-recommendations.md)
 的推荐方案**整体确认**，移入「已确认决策」（D-23 至 D-27）；简答题空答案口径为 D-28。
-[`decision-recommendations.md`](decision-recommendations.md) 自此转为历史记录。
+[`decision-recommendations.md`](appendix/decision-recommendations.md) 自此转为历史记录。
 
 | 编号 | 去向 |
 | --- | --- |
@@ -163,8 +163,8 @@ Q-08 至 Q-12 已于 2026-09-23 按 [`decision-recommendations.md`](decision-rec
 | U-3 | **Q-11 RAG 未完成时的使用规则** | 决定"展示就绪"与"检索就绪"的产品行为，直接影响 DB-14 | **已拍板（2026-09-23）→ D-25（两状态分离 + 分级降级）**。剩余：RAG 投影契约按 D-25 落稿 |
 | U-4 | **Q-12 资源与派生结果的存储映射** | 与 Q-05/Q-09 共同决定资源与投影的落库形态 | **已拍板（2026-09-23）→ D-26（引用+校验+归属）**。剩余：落库形态（`question_asset` 补列 vs 另建资源引用表）在物理结构附录二选一 |
 | U-5 | **Q-08 `t_text_content` 题目部分何时退出** | 旧结构退役（`migration-plan.md` 第 0.1 节 R-1～R-5）的时机由它决定 | **已拍板（2026-09-23）→ D-27（分字段退役、整表保留）**。退役顺序已写入决策；字段退役清单落在 `data-contract.md` 字段表 |
-| U-6 | **第 43 题样本核对（S-01/S-02/S-06）** | 内容迁移设计定稿的**前置条件** | **已执行（2026-09-21）**：真题找到（`t_question.id=8541`，来源为第三方整理页而非官方原卷）；**保真验证为"部分"**——题干文字、2 张图、6 个小问与解析可从外部 HTML 还原，但**图/小问/答案无结构化记录**，原图**作为文件不可获得**（61 张 PNG 以 base64 内联在 `q43-title.html`，`question-assets/csgraduates/408-real-2024/` 为空目录）。产出 [`sample-2024-q43.md`](sample-2024-q43.md)。**新增未完成项见 U-9～U-11** |
-| U-7 | 数据契约中标注 `[待验证]` 的 16 项 | 它们影响契约能否作为管理端依据 | **已收口（2026-09-23）**：16 项全部有处置，见 [`pending-verification.md`](pending-verification.md)——9 项补证据、5 项拍板/确认（#8→D-28、#15→D-25）、1 项确认延期（#7→TD-018）、1 项转实施验收（#16） |
+| U-6 | **第 43 题样本核对（S-01/S-02/S-06）** | 内容迁移设计定稿的**前置条件** | **已执行（2026-09-21）**：真题找到（`t_question.id=8541`，来源为第三方整理页而非官方原卷）；**保真验证为"部分"**——题干文字、2 张图、6 个小问与解析可从外部 HTML 还原，但**图/小问/答案无结构化记录**，原图**作为文件不可获得**（61 张 PNG 以 base64 内联在 `q43-title.html`，`question-assets/csgraduates/408-real-2024/` 为空目录）。产出 [`sample-2024-q43.md`](appendix/sample-2024-q43.md)。**新增未完成项见 U-9～U-11** |
+| U-7 | 数据契约中标注 `[待验证]` 的 16 项 | 它们影响契约能否作为管理端依据 | **已收口（2026-09-23）**：16 项全部有处置，见 [`pending-verification.md`](appendix/pending-verification.md)——9 项补证据、5 项拍板/确认（#8→D-28、#15→D-25）、1 项确认延期（#7→TD-018）、1 项转实施验收（#16） |
 | U-8 | 逐题异常隔离、中断恢复其余场景、多语句事务回滚、全量演练、读路径切换与双写观察、旧结构退役步骤 | 演练只覆盖了有限场景，不能外推 | 实施阶段（或本 Feature 追加）另行验证 |
 | **U-9** | **内容完整性范围未量化**：题干截断已在样本上确认并传导到两处新表（TD-017），但全库比例未知；长度分布不足以判定（305 字符最多 908 行、恰好 300/303 的 316 行） | 它决定迁移能否把旧 JSON 当作内容来源，是 Q-09 与转换规则的前提 | 以外部 HTML 渲染后的可见正文为基准做全库抽样比对；本 Feature 只出样本级证据 |
 | **U-10** | **`title_text` 不是 `title` 的投影**（样本：`title` 300 字符 vs `title_text` 1122 字符，且 `title_text` 混入图内标签） | 与 DB-04「纯文本为带规则的投影」的契约声明冲突；影响 RAG 输入（会把图内标签当正文） | Q-09 已拍板 → 投影规则在 `data-contract.md` 按 D-23 定稿（`*_text` 一律按规则从块重算，现存不符列进入退役清单）；全库范围仍未量化，与 U-9 同批处理 |
@@ -182,23 +182,23 @@ Q-08 至 Q-12 已于 2026-09-23 按 [`decision-recommendations.md`](decision-rec
 
 | 交付物 | 位置 | 状态 |
 | --- | --- | --- |
-| 只读审计 SQL（A-01～A-13） | [`audit-queries.sql`](audit-queries.sql) | 已编写并执行；A-12 手工并发探针改为隔离库测试、A-06/A-07 人工对照未执行 |
-| 事实审计报告 | [`audit-report.md`](audit-report.md) | 已产出（含 A-09 口径修正与 RAG 措辞修正） |
-| 读写入口盘点 | [`entry-inventory.md`](entry-inventory.md) | 已产出（102 条、46 处行号证据） |
-| 决策卡 | [`decision-cards.md`](decision-cards.md) | Q-01～Q-07 已拍板并归档；转为历史记录 |
-| Q-08～Q-12 决策推荐 | [`decision-recommendations.md`](decision-recommendations.md) | **已由作者整体确认（2026-09-23）→ D-23～D-27**；转为历史记录 |
-| 待验证项分类 | [`pending-verification.md`](pending-verification.md) | 16 项全部有处置（2026-09-23 收口） |
+| 只读审计 SQL（A-01～A-13） | [`audit-queries.sql`](appendix/audit-queries.sql) | 已编写并执行；A-12 手工并发探针改为隔离库测试、A-06/A-07 人工对照未执行 |
+| 事实审计报告 | [`audit-report.md`](appendix/audit-report.md) | 已产出（含 A-09 口径修正与 RAG 措辞修正） |
+| 读写入口盘点 | [`entry-inventory.md`](appendix/entry-inventory.md) | 已产出（102 条、46 处行号证据） |
+| 决策卡 | [`decision-cards.md`](appendix/decision-cards.md) | Q-01～Q-07 已拍板并归档；转为历史记录 |
+| Q-08～Q-12 决策推荐 | [`decision-recommendations.md`](appendix/decision-recommendations.md) | **已由作者整体确认（2026-09-23）→ D-23～D-27**；转为历史记录 |
+| 待验证项分类 | [`pending-verification.md`](appendix/pending-verification.md) | 16 项全部有处置（2026-09-23 收口） |
 | 字段所有权与数据契约 | [`data-contract.md`](data-contract.md) | 初稿；Q-01～Q-13 已拍板，内容块/RAG 投影/资源契约按 D-23/D-25/D-26 定稿中 |
-| 设计验收测试方案与运行记录 | [`design-test-plan.md`](design-test-plan.md) | T1–T5 已执行，T5 与 T2-4 按计划不实现 |
-| current 唯一性候选 DDL | [`ddl/`](ddl/) | 已在隔离库应用并验证约束能力 |
-| 批次 4 物理结构实验 | [`ddl/batch4-experiment.sql`](ddl/batch4-experiment.sql) | 已执行（合成样本 EXPLAIN 对照） |
-| 物理结构设计 | [`physical-design.md`](physical-design.md) | 候选与隔离验证完成；迁移影响已列 |
-| 迁移与回滚方案 | [`migration-plan.md`](migration-plan.md) | 草稿；含旧结构退役目标 R-1～R-5 |
-| 迁移演练报告 | [`rehearsal-report.md`](rehearsal-report.md) | 代表性演练已执行；结论已限定范围 |
-| 执行工作流 | [`workflow.md`](workflow.md) | 六阶段与四个人工门；批次执行记录 |
-| 本 Feature 的验证记录 | [`validation.md`](validation.md) | **未执行**（批次 6 收敛阶段） |
-| 复杂题目与双表示契约样本 | [`sample-contract.md`](sample-contract.md) | 已定义；第 43 题样本已核对（U-6 关闭，保真验证为"部分"） |
-| 第 43 题样本事实调查 | [`sample-2024-q43.md`](sample-2024-q43.md) | 已产出；新发现 N-1～N-3（截断 → TD-017、图片标志 → TD-018） |
+| 设计验收测试方案与运行记录 | [`design-test-plan.md`](appendix/design-test-plan.md) | T1–T5 已执行，T5 与 T2-4 按计划不实现 |
+| current 唯一性候选 DDL | [`ddl/`](appendix/ddl/) | 已在隔离库应用并验证约束能力 |
+| 批次 4 物理结构实验 | [`ddl/batch4-experiment.sql`](appendix/ddl/batch4-experiment.sql) | 已执行（合成样本 EXPLAIN 对照） |
+| 物理结构设计 | [`physical-design.md`](appendix/physical-design.md) | 候选与隔离验证完成；迁移影响已列 |
+| 迁移与回滚方案 | [`migration-plan.md`](appendix/migration-plan.md) | 草稿；含旧结构退役目标 R-1～R-5 |
+| 迁移演练报告 | [`rehearsal-report.md`](appendix/rehearsal-report.md) | 代表性演练已执行；结论已限定范围 |
+| 执行工作流 | [`workflow.md`](appendix/workflow.md) | 六阶段与四个人工门；批次执行记录 |
+| 本 Feature 的验证记录 | [`validation.md`](appendix/validation.md) | **未执行**（批次 6 收敛阶段） |
+| 复杂题目与双表示契约样本 | [`sample-contract.md`](appendix/sample-contract.md) | 已定义；第 43 题样本已核对（U-6 关闭，保真验证为"部分"） |
+| 第 43 题样本事实调查 | [`sample-2024-q43.md`](appendix/sample-2024-q43.md) | 已产出；新发现 N-1～N-3（截断 → TD-017、图片标志 → TD-018） |
 
 报告与新文档一律记录：代码提交、库名、Flyway 版本、采样时间、执行的 SQL 原文和真实结果。
 未执行的项保持未勾选。
@@ -221,7 +221,7 @@ Q-08 至 Q-12 已于 2026-09-23 按 [`decision-recommendations.md`](decision-rec
 - 题库答案修改后，已完成考试应该展示哪个答案？如何证明历史记录一致？
 - 内容更新成功但向量索引更新失败时，系统处于什么状态？如何发现并恢复？
 
-**B. 面经改编（来源、时间不确定性与完整题目清单见 [validation.md](validation.md#面经改编模拟题)）**
+**B. 面经改编（来源、时间不确定性与完整题目清单见 [validation.md](appendix/validation.md#面经改编模拟题)）**
 
 - 数据库乐观锁与悲观锁的实现与代价；
 - 接口幂等：如何识别同一个请求；

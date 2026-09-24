@@ -5,7 +5,7 @@
 > 不安装或升级任何依赖；实施另立 Feature。
 > **依据**：用户已确认的 A-02（要求完整说明技术栈）与 A-05（整体切换 + 回退窗口）、
 > [`scope-and-pages.md`](scope-and-pages.md)、[`api-contract.md`](api-contract.md)、
-> [`../2026-09-20-database-architecture/migration-plan.md`](../2026-09-20-database-architecture/migration-plan.md)
+> [`../2026-09-20-database-architecture/migration-plan.md`](../2026-09-20-database-architecture/appendix/migration-plan.md)
 > （旧结构退役 R-1～R-5，本文件只引用不复制）、
 > [`../2026-09-23-public-deploy/requirements.md`](../2026-09-23-public-deploy/requirements.md)（部署产物形态）。
 

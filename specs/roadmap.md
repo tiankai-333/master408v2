@@ -97,15 +97,15 @@
 - [-] 完成 `t_question`、`t_text_content`、`question_content`、`question_source`、
   `question_asset`、`question_knowledge_point` 的静态读写清单；
 - [x] 编写可重复执行的只读审计脚本
-  [`audit-queries.sql`](2026-09-20-database-architecture/audit-queries.sql)（A-01 至 A-13）；
+  [`audit-queries.sql`](2026-09-20-database-architecture/appendix/audit-queries.sql)（A-01 至 A-13）；
 - [x] 执行只读数据审计：覆盖率、孤儿记录、唯一 current、版本连续性和最近写入
-  （[`audit-report.md`](2026-09-20-database-architecture/audit-report.md)，含 A-09 口径修正）；
+  （[`audit-report.md`](2026-09-20-database-architecture/appendix/audit-report.md)，含 A-09 口径修正）；
 - [x] 计算旧 JSON、新内容表及扩展列的题干、选项、答案、解析一致率（A-06；题型 2/3/4 真实零行已如实标注）；
 - [x] 验证软删除题目是否仍进入知识图谱、组卷或 RAG（A-09/A-04：真实库无已停用样本，
   语义验证转实施——pending-verification #16）；
 - [x] 按“事实、派生状态、检索投影、运行记录”确认各表角色（`data-contract.md` 第 3、4 节字段级三列）；
 - [x] 依据审计结果确认 current 唯一性方案，隔离库候选 DDL 见
-  [`ddl/`](2026-09-20-database-architecture/ddl/)（T1 实测 1062；D-13/D-14）；
+  [`ddl/`](2026-09-20-database-architecture/appendix/ddl/)（T1 实测 1062；D-13/D-14）；
 - [x] 输出暂不修改项、可安全修复项和需要业务决策的争议项
   （技术债 TD-012～TD-018；争议项全部归档为 D-13～D-28）。
 
@@ -265,6 +265,12 @@ A-01/A-02/A-03/A-05 已确认，A-04 随 9.20 D-23～D-28 定稿解除阻塞。
 - 动态 Tool 平台：静态注册已经不能满足真实产品需求，并具备版本、权限和审计设计。
 
 这些名词本身不是立项理由。
+
+## 能力对照
+
+各 Phase 对作者能力的覆盖关系以 [mission 学习目标与能力模型](mission.md#学习目标与能力模型)
+为准。能力差距只在 mission 中记录，不因对照存在而自动排期；任何差距项进入实施，
+仍以[条件式扩展](#条件式扩展不预排期)的触发条件为唯一入口。
 
 ## 功能阶段的统一验收门槛
 

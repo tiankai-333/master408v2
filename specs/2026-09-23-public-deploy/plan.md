@@ -23,7 +23,7 @@
 ## 1. 环境盘点与服务器安全基线
 
 - [ ] 只读盘点目标服务器：运行中的服务、端口、磁盘与内存占用、已有 Docker/数据/备份、
-  登录与安全日志；形成事实记录写入 `docs/deployment/server-inventory.local.md`，不改动任何现状。
+  登录与安全日志；形成事实记录写入 `deploy/local/server-inventory.local.md`，不改动任何现状。
 - [ ] 依据盘点结果与用户确认 A-01（替换/共存/清场）、A-05（备案状态、证书方式）、A-06（注册开放）。
 - [ ] 口令处置：**用户 2026-09-23 已决定不更换 root 口令**，SSH 密钥登录已在第 0 组配置完成；
   记录该决定的暴露面（22 端口密码认证对公网爆破持续开放），缓解手段为密钥优先与第 1 组的
@@ -40,6 +40,10 @@
 - [ ] 确认 A-03（构建分发方式）、A-07（产物位置）后编写产物：后端镜像 Dockerfile（多阶段、
   非 root、不携带构建密钥）、前端构建产物、`deploy/` 下 compose 生产文件、nginx 配置
   （`/student/`、`/admin/`、`/api/` 含 SSE 透传）、`.env.example`。
+- [ ] **按 PD-16 落地镜像链路（用户硬性要求：不走 Docker Hub 直连、不用代理、ACR 单仓库中转）**：
+  用户提供阿里云专属加速器地址后，本机与服务器 daemon.json 仅配该加速器；Dockerfile 的 FROM
+  保持官方引用（经加速器解析）；业务镜像推送/拉取改用单仓库 `master408` 的 `backend-*/web-*` tag；
+  不得以 docker.io 直连作为任何实际执行路径。
 - [ ] 在 compose 中加入 v2 必需的 Redis 服务；MySQL、Redis、Qdrant、Actuator 端口不映射公网。
 - [ ] 编写内存分配表（PD-02）：每服务 mem_limit、JVM 堆上限、MySQL buffer pool、Redis maxmemory、
   swap 预留；标注 Qdrant 关闭/开启两套形态的差值。

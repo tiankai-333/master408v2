@@ -22,16 +22,16 @@ RAG 就绪契约 4.6）、生命周期与失效语义（6.4/7.3）、物理结�
 - 会写数据的步骤只能在隔离库执行（见 `design-test-plan.md` 第 1 节）。
 - 结论与真实数据不一致时，改结论，不改数据；不确定的项留在待决策表，不擅自补默认值。
 
-执行节奏、人工门与批次划分见 [`workflow.md`](workflow.md)。
+执行节奏、人工门与批次划分见 [`workflow.md`](appendix/workflow.md)。
 
 ## 1. 完成读写入口盘点并执行只读审计
 
 ### 优先入口：先用样本明确目标，再用审计约束迁移
 
-- [x] 建立 [`sample-contract.md`](sample-contract.md)，定义复杂图文题与简单代码题的验证矩阵；
+- [x] 建立 [`sample-contract.md`](appendix/sample-contract.md)，定义复杂图文题与简单代码题的验证矩阵；
 - [x] 核对第 43 题原图和完整内容；若无法取得可用原图，采用明确标记的原创同结构夹具；
       **已执行**：真题找到（`t_question.id=8541`），保真验证"部分"（原图文件不可获得，base64 内联于
-      外部 HTML）→ [`sample-2024-q43.md`](sample-2024-q43.md) + 原创夹具 `FIXTURE-NOVA16-01`；
+      外部 HTML）→ [`sample-2024-q43.md`](appendix/sample-2024-q43.md) + 原创夹具 `FIXTURE-NOVA16-01`；
       新发现 N-1～N-3（截断 → TD-017、图片标志 → TD-018）；
 - [x] 在 `data-contract.md` 给出一题多图、公共材料、小问及答案解析的结构化实例，完成 S-01/S-02；
       → 3.9 块模型与能力断言（规则 7），样本级证据为 `sample-2024-q43.md`；
@@ -42,18 +42,18 @@ RAG 就绪契约 4.6）、生命周期与失效语义（6.4/7.3）、物理结�
 
 - [x] 阅读事实源清单，核对标准题目写入、内容版本 Mapper 和考试读写依赖；
 - [x] 编写流水线文档：requirements（范围/决策/需求）、本 plan、validation；
-- [x] 编写只读审计脚本 [`audit-queries.sql`](audit-queries.sql)，覆盖 A-01 至 A-13；
-- [x] 编写 current 唯一性候选 DDL：[`ddl/current-uniqueness-strict.sql`](ddl/current-uniqueness-strict.sql)、
-      [`ddl/current-uniqueness-transitional.sql`](ddl/current-uniqueness-transitional.sql)；
-- [x] 编写设计验收方案 [`design-test-plan.md`](design-test-plan.md)；
+- [x] 编写只读审计脚本 [`audit-queries.sql`](appendix/audit-queries.sql)，覆盖 A-01 至 A-13；
+- [x] 编写 current 唯一性候选 DDL：[`ddl/current-uniqueness-strict.sql`](appendix/ddl/current-uniqueness-strict.sql)、
+      [`ddl/current-uniqueness-transitional.sql`](appendix/ddl/current-uniqueness-transitional.sql)；
+- [x] 编写设计验收方案 [`design-test-plan.md`](appendix/design-test-plan.md)；
 - [x] 补齐剩余读写入口，逐条记录调用点与文件路径：批量导入、后台任务、知识图谱 SQL、
       RAG 回填与刷新、直接 SQL 脚本；
-      产出 [`entry-inventory.md`](entry-inventory.md)：102 条编号条目（I-6 / B-7 / K-11 / R-9 / S-15 /
+      产出 [`entry-inventory.md`](appendix/entry-inventory.md)：102 条编号条目（I-6 / B-7 / K-11 / R-9 / S-15 /
       W-26 / Q-21 / U-7），46 处行号证据；父代理已抽检其中两条关键结论（跨来源拼接、RAG hash 基准不一致）并确认；
 - [x] 确认审计目标：库名（`xzs` 或 `master408_v2`）、Flyway 版本、快照时间，写入报告头部；
       结论：审计库 = **`xzs`**（`master408_v2` 结构同为 Flyway V5 但题目领域 8 张表全为 0 行），
       采样 2026-09-21 20:15；
-- [x] 建立 [`audit-report.md`](audit-report.md) 骨架并写入第一轮结果；
+- [x] 建立 [`audit-report.md`](appendix/audit-report.md) 骨架并写入第一轮结果；
 - [x] 在只读连接下执行 A-01 至 A-11c，把 SQL 原文与真实结果写入 `audit-report.md`；
       原始输出 `.data/audit-raw-xzs.txt`；顺带修正 A-09 的 `source_ref` 口径（真值为
       `t_question:<id>`，原查询为假阴性）并补充投影覆盖查询；
@@ -79,7 +79,7 @@ RAG 就绪契约 4.6）、生命周期与失效语义（6.4/7.3）、物理结�
 - [x] 为五种题型写出内容与评分契约，逐题型记录与现有实现一致或冲突之处（DB-03）；
       见 `data-contract.md` 第 5 节；**新增 Q-13：管理端与后端 3/4 题型编号相反**，待人工确认；
 - [x] 定义 `question_content` 的索引调整方案，并在隔离库用 A-06 规模的合成样本对比 `EXPLAIN`；
-      见 [`physical-design.md`](physical-design.md) 第 3 节：6613 题合成样本对照后，**建议不再新增索引**，
+      见 [`physical-design.md`](appendix/physical-design.md) 第 3 节：6613 题合成样本对照后，**建议不再新增索引**，
       而是在候选 A 之上把读取语句改写为 `WHERE current_question_id = ?`（`const` 命中、无排序）；
       `EXPLAIN` 仅作计划选择证据，不宣称性能提升。
 - [x] 把 Q-01 至 Q-07 的结论写回 requirements 的已确认决策表，并同步该表删除对应待决策行；
@@ -113,13 +113,13 @@ RAG 就绪契约 4.6）、生命周期与失效语义（6.4/7.3）、物理结�
 
 ## 4. 设计迁移、对账与回滚
 
-- [x] 产出 [`migration-plan.md`](migration-plan.md)：扩展结构 → 转换 → 回填 → 对账 → 读路径切换 → 旧写入退出的分阶段步骤；
+- [x] 产出 [`migration-plan.md`](appendix/migration-plan.md)：扩展结构 → 转换 → 回填 → 对账 → 读路径切换 → 旧写入退出的分阶段步骤；
 - [x] 定义批次、幂等键、断点、异常隔离与校验报告格式（DB-10）；见 `migration-plan.md` 第 2、8 节；
 - [x] 定义回滚动作，并说明切换以来新增数据如何保留；评估逆向转换是否无损（DB-10）；
       见 `migration-plan.md` 第 5 节：逆向转换**不保证无损**，旧表示在可预见窗口内不得删除；
 - [x] 定义迁移与索引重建期间的停写窗口、限流和在线请求的降级行为；见第 6 节；
 - [x] 在隔离库按代表性样本演练迁移设计，包括故障注入与重跑，产出对账报告；全量演练留给实施阶段；
-      见 [`rehearsal-report.md`](rehearsal-report.md) 与 [`ddl/batch5-rehearsal.sql`](ddl/batch5-rehearsal.sql)。
+      见 [`rehearsal-report.md`](appendix/rehearsal-report.md) 与 [`ddl/batch5-rehearsal.sql`](appendix/ddl/batch5-rehearsal.sql)。
       **结论范围已限定**：只证明"在这组样本上重复执行不新增"与"该条回填语句失败时不留下部分写入"，
       不等于验证了中断恢复的所有场景或整个迁移流程可回滚；
       **遗留未验证**：逐题异常隔离、部分提交后崩溃、连接中断、锁超时、批次记录损坏、并发迁移；
@@ -130,7 +130,7 @@ RAG 就绪契约 4.6）、生命周期与失效语义（6.4/7.3）、物理结�
 
 ## 5. 收敛与验收
 
-- [x] 按 [`validation.md`](validation.md) 逐条确认 DB-01 至 DB-11 的验证路径都已执行或有明确未执行说明；
+- [x] 按 [`validation.md`](appendix/validation.md) 逐条确认 DB-01 至 DB-11 的验证路径都已执行或有明确未执行说明；
       → `validation.md` 2.1 验证记录（已执行 / 设计定稿-运行待实施 逐条标注）；
 - [x] 形成管理端可依赖的数据契约与当前不可承诺的能力两份清单（DB-11）；
       → `data-contract.md` 第 8 节（可承诺 17 项 / 不可承诺 28 项，其中 26/27 项已按 D-24/D-23 改写）；
