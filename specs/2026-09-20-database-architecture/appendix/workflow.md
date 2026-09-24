@@ -1,7 +1,7 @@
 # 工作流 — 数据库架构设计（题目领域）
 
 本文件定义**执行节奏**：阶段、门、批次、红线。任务清单仍在 [`plan.md`](../plan.md)；需求与决策立场在
-[`requirements.md`](../requirements.md)；验收标准在 [`validation.md`](validation.md)。
+[`requirements.md`](../requirements.md)；验收标准在 [`validation.md`](../validation.md)。
 
 这不是新规则，而是把 plan 的工作规则、requirements 的 D-01..D-12 与 L91 的约束落成可执行的顺序。
 

@@ -2,7 +2,7 @@
 
 状态：**设计未完成**。运行时只读审计已执行（[`audit-report.md`](appendix/audit-report.md)）；
 隔离库设计测试 T1–T5 已执行并记录（[`design-test-plan.md`](appendix/design-test-plan.md) 第 5 节）；
-读写入口盘点完成（[`entry-inventory.md`](appendix/entry-inventory.md)）；数据契约初稿（[`data-contract.md`](data-contract.md)）；
+读写入口盘点完成（[`entry-inventory.md`](appendix/entry-inventory.md)）；数据契约初稿（[`data-contract.md`](appendix/data-contract.md)）；
 物理结构候选与隔离验证（[`physical-design.md`](appendix/physical-design.md)）；迁移方案与代表性演练
 （[`migration-plan.md`](appendix/migration-plan.md)、[`rehearsal-report.md`](appendix/rehearsal-report.md)）。
 Q-01 至 Q-13 已**全部拍板**：Q-01～Q-07、Q-13 于 2026-09-21 拍板（D-13～D-22）；
@@ -188,7 +188,7 @@ Q-08 至 Q-12 已于 2026-09-23 按 [`decision-recommendations.md`](appendix/dec
 | 决策卡 | [`decision-cards.md`](appendix/decision-cards.md) | Q-01～Q-07 已拍板并归档；转为历史记录 |
 | Q-08～Q-12 决策推荐 | [`decision-recommendations.md`](appendix/decision-recommendations.md) | **已由作者整体确认（2026-09-23）→ D-23～D-27**；转为历史记录 |
 | 待验证项分类 | [`pending-verification.md`](appendix/pending-verification.md) | 16 项全部有处置（2026-09-23 收口） |
-| 字段所有权与数据契约 | [`data-contract.md`](data-contract.md) | 初稿；Q-01～Q-13 已拍板，内容块/RAG 投影/资源契约按 D-23/D-25/D-26 定稿中 |
+| 字段所有权与数据契约 | [`data-contract.md`](appendix/data-contract.md) | 初稿；Q-01～Q-13 已拍板，内容块/RAG 投影/资源契约按 D-23/D-25/D-26 定稿中 |
 | 设计验收测试方案与运行记录 | [`design-test-plan.md`](appendix/design-test-plan.md) | T1–T5 已执行，T5 与 T2-4 按计划不实现 |
 | current 唯一性候选 DDL | [`ddl/`](appendix/ddl/) | 已在隔离库应用并验证约束能力 |
 | 批次 4 物理结构实验 | [`ddl/batch4-experiment.sql`](appendix/ddl/batch4-experiment.sql) | 已执行（合成样本 EXPLAIN 对照） |
@@ -196,7 +196,7 @@ Q-08 至 Q-12 已于 2026-09-23 按 [`decision-recommendations.md`](appendix/dec
 | 迁移与回滚方案 | [`migration-plan.md`](appendix/migration-plan.md) | 草稿；含旧结构退役目标 R-1～R-5 |
 | 迁移演练报告 | [`rehearsal-report.md`](appendix/rehearsal-report.md) | 代表性演练已执行；结论已限定范围 |
 | 执行工作流 | [`workflow.md`](appendix/workflow.md) | 六阶段与四个人工门；批次执行记录 |
-| 本 Feature 的验证记录 | [`validation.md`](appendix/validation.md) | **未执行**（批次 6 收敛阶段） |
+| 本 Feature 的验证记录 | [`validation.md`](validation.md) | **未执行**（批次 6 收敛阶段） |
 | 复杂题目与双表示契约样本 | [`sample-contract.md`](appendix/sample-contract.md) | 已定义；第 43 题样本已核对（U-6 关闭，保真验证为"部分"） |
 | 第 43 题样本事实调查 | [`sample-2024-q43.md`](appendix/sample-2024-q43.md) | 已产出；新发现 N-1～N-3（截断 → TD-017、图片标志 → TD-018） |
 
@@ -221,7 +221,7 @@ Q-08 至 Q-12 已于 2026-09-23 按 [`decision-recommendations.md`](appendix/dec
 - 题库答案修改后，已完成考试应该展示哪个答案？如何证明历史记录一致？
 - 内容更新成功但向量索引更新失败时，系统处于什么状态？如何发现并恢复？
 
-**B. 面经改编（来源、时间不确定性与完整题目清单见 [validation.md](appendix/validation.md#面经改编模拟题)）**
+**B. 面经改编（来源、时间不确定性与完整题目清单见 [validation.md](validation.md#面经改编模拟题)）**
 
 - 数据库乐观锁与悲观锁的实现与代价；
 - 接口幂等：如何识别同一个请求；

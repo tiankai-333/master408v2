@@ -40,10 +40,11 @@
 - [ ] 确认 A-03（构建分发方式）、A-07（产物位置）后编写产物：后端镜像 Dockerfile（多阶段、
   非 root、不携带构建密钥）、前端构建产物、`deploy/` 下 compose 生产文件、nginx 配置
   （`/student/`、`/admin/`、`/api/` 含 SSE 透传）、`.env.example`。
-- [ ] **按 PD-16 落地镜像链路（用户硬性要求：不走 Docker Hub 直连、不用代理、ACR 单仓库中转）**：
-  用户提供阿里云专属加速器地址后，本机与服务器 daemon.json 仅配该加速器；Dockerfile 的 FROM
-  保持官方引用（经加速器解析）；业务镜像推送/拉取改用单仓库 `master408` 的 `backend-*/web-*` tag；
-  不得以 docker.io 直连作为任何实际执行路径。
+- [-] **按 PD-16 落地镜像链路（用户硬性要求：不走 Docker Hub 直连、不用代理、ACR 单仓库中转）**：
+  2026-09-24 实测后定案——基础镜像自建（`deploy/build-base-images.sh`，原料 mirrors.aliyun.com/alpine，
+  产出 m408base 三件套）；nginx 用本机既有 1.25-alpine；mysql 用 mindskip 公共 ACR 8.0.33；
+  业务镜像单仓库 `master408` 的 `backend-*/web-*` tag。加速器仅白名单命中时可选（nginx）。
+  ECS 已装 docker-ce 26.1.3 并配加速器；待办：本机/ECS 各跑一次基座脚本、ECS 验证 mindskip mysql 拉取。
 - [ ] 在 compose 中加入 v2 必需的 Redis 服务；MySQL、Redis、Qdrant、Actuator 端口不映射公网。
 - [ ] 编写内存分配表（PD-02）：每服务 mem_limit、JVM 堆上限、MySQL buffer pool、Redis maxmemory、
   swap 预留；标注 Qdrant 关闭/开启两套形态的差值。

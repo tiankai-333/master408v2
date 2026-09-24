@@ -2,7 +2,7 @@
 
 > **状态**：**主体定稿（2026-09-23）**。字段级三列、五题型契约、可承诺/不可承诺清单、
 > 内容块契约（3.9）、RAG 就绪与降级契约（4.6）、生命周期事务边界（6.4）、下游失效语义（7.3）已完成；
-> Q-01 至 Q-13 已全部拍板（D-13～D-28），16 项待验证全部收口（[`pending-verification.md`](appendix/pending-verification.md)）。
+> Q-01 至 Q-13 已全部拍板（D-13～D-28），16 项待验证全部收口（[`pending-verification.md`](pending-verification.md)）。
 > 仍开放：物理结构附录（第 3 组）、迁移阈值数字（D-11，实施阶段推导）。
 > **日期**：2026-09-21 初稿；2026-09-23 按 D-23～D-28 定稿
 > **依据的代码提交**：`c2c0a84`（工作区含 19 项未提交改动，与 `audit-report.md` 头部一致；
@@ -59,7 +59,7 @@
 
 另：第 5 章按"契约项"给出 5 种题型的 **52 行**内容与评分契约；第 8 章给出可承诺 **17** 项、
 不可承诺 **28** 项（其中第 26/27 项已按 D-24/D-23 改写定性）；第 10 章的 16 项待验证
-**已全部收口**（→ [`pending-verification.md`](appendix/pending-verification.md)）。
+**已全部收口**（→ [`pending-verification.md`](pending-verification.md)）。
 
 ### 1.4 本文件不做的事
 
@@ -703,7 +703,7 @@ RAG 文档、切片与向量**整体定性为可重建投影**，必须携带**�
 
 ## 9. 决策归档（Q-08 至 Q-12，2026-09-23 已拍板）
 
-初稿本节为"待决策小节"。五项已于 2026-09-23 按 [`decision-recommendations.md`](appendix/decision-recommendations.md)
+初稿本节为"待决策小节"。五项已于 2026-09-23 按 [`decision-recommendations.md`](decision-recommendations.md)
 由作者**整体确认**，归档为 requirements 的 **D-23～D-27**（简答题空答案口径另归档为 **D-28**）。
 本契约各受影响位置已同步定稿：
 
@@ -724,7 +724,7 @@ D-26 进一步把资源契约细化为"归属（版本+块）+ 定位 + 校验 +
 ## 10. 待验证清单（已全部收口，2026-09-23）
 
 初稿登记的 16 项已于 2026-09-21 补证据、2026-09-23 经作者确认**全部收口**。
-**逐项结论与证据的当前权威清单是 [`pending-verification.md`](appendix/pending-verification.md)**；下表为初稿登记，保留追溯。
+**逐项结论与证据的当前权威清单是 [`pending-verification.md`](pending-verification.md)**；下表为初稿登记，保留追溯。
 
 | 归宿 | 项号 |
 | --- | --- |

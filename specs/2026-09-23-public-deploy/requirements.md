@@ -36,12 +36,27 @@
 - 2026-09-23 已用 root+密码 SSH 登录验证成功；登录横幅显示 904 次失败登录尝试与 46 条待更新安全公告。
 - 域名 `edu.wutiankai.cn` 已由用户解析至 `8.130.53.51`（用户 2026-09-23 确认，未独立复核 DNS 生效）。
 - 2 GiB 内存对 Java + MySQL + Redis + Qdrant + nginx 同机运行是紧约束，内存预算是本 Feature 的一级需求。
-- 镜像供应链事实（2026-09-23 实测）：本机 `docker build` 直连 `registry-1.docker.io` 超时失败——
-  **Docker Hub 在当前网络不可达**。用户明确要求（硬性约束）：本机与服务器均为**纯国内环境，不使用代理**，
-  任何构建与部署路径不得默认或回退到 Docker Hub 直连，也不得以代理为前提。
-  用户同时定位：**ACR 只是解决网速问题的中转**（用户 2026-09-23 决定单仓库方案，不为镜像体系建多仓库、
-  不做镜像托管备份；修改与备份都在本地）——自建镜像以 tag 前缀共用一个仓库；
-  基础镜像不进 ACR，由本机与服务器的 Docker daemon 配置**阿里云专属加速器**拉取（阿里云国内链路，非代理）。
+
+### 环境约束（部署前提，2026-09-23/24 实测；部署类规格的必要章节）
+
+| 项 | 事实 | 来源 |
+| --- | --- | --- |
+| 目标机 | 阿里云 ECS，2 vCPU / 1.8 GiB 可见内存 / 40 GiB 盘 / 3 Mbps 固定带宽，Alibaba Cloud Linux 3，地域 `cn-wulanchabu` | 实例元数据 + 只读盘点 |
+| 网络性质 | 本机与服务器均为**纯国内环境，不使用代理**（用户硬性要求） | 用户决定 |
+| Docker Hub | 本机与 ECS 直连 `registry-1.docker.io` 均失败（connection refused / timeout） | 双端实测 |
+| 阿里云专属加速器 | `yi1rba6m.mirror.aliyuncs.com`；仅对阿里云产品生效（本机 403），且白名单只含部分热门镜像——nginx 可拉，redis / eclipse-temurin / mysql 均 404 后回退失败 | ECS 实测 |
+| 可用国内渠道 | ① 自有 ACR（VPC 内网，业务镜像中转，单仓库）；② mindskip 公共 ACR 仓库（`mysql:8.0.33`，v1 验证可用）；③ `mirrors.aliyun.com/alpine`（rootfs 与 apk 包，用于自研基础镜像） | 实测/设计 |
+| 服务器 Docker | 2026-09-24 已安装 docker-ce 26.1.3（aliyun docker-ce repo）；daemon.json 仅配专属加速器 | 执行记录 |
+| 本机 Docker | Docker Desktop（WSL2 引擎）；修改 daemon.json 后必须整体重启引擎（含 docker-desktop WSL 发行版）才生效，只重启 UI 进程无效 | 执行记录 |
+
+由此确定的镜像供应链（PD-16 执行方案，任何环节不得引入 Docker Hub 直连或代理）：
+
+- 基础镜像**自建**：`m408base:alpine3.20` / `m408base:jre21` / `m408base:redis7`，脚本
+  [build-base-images.sh](../../deploy/build-base-images.sh)，原料全部来自 mirrors.aliyun.com/alpine；
+- nginx 基座用本机既有 `nginx:1.25-alpine`；MySQL 用 mindskip 公共 ACR 镜像 `8.0.33`；
+  qdrant 用本机既有 `v1.9.7`（向量期再上服务器）；
+- 业务镜像走自有 ACR **单仓库** `wutiankai/master408`，tag 前缀 `backend-<sha>` / `web-<sha>`
+  （用户定位：ACR 仅为过网速的中转，修改与备份都在本地）。
 
 ## 必须满足的需求
 
@@ -62,7 +77,7 @@
 | PD-13 | 公开证明材料：部署文档、架构图、带日期环境的运行证据整理成对外可展示材料；演示指标可追溯到版本 | 文档与证据链接清单 |
 | PD-14 | 现状一致：文档区分已部署、已验证、未完成；不以本地演练冒充公网验证 | validation 逐项核对 |
 | PD-15 | 自我考核：作者独立解释部署链路、安全决策与故障行为 | validation 自我考核记录 |
-| PD-16 | **镜像供应链不依赖 Docker Hub 直连、不使用代理（用户硬性要求，纯国内环境）**：自建镜像（backend/web）的实际执行路径为本项目 ACR **单仓库**（tag 前缀 `backend-<sha>` / `web-<sha>` 区分）；基础镜像（JRE、nginx、mysql、redis、qdrant）的执行路径为**阿里云专属加速器**（本机与服务器 daemon.json 的 registry-mirrors，均为阿里云国内链路）；不建 base-* 仓库，不做镜像托管备份（用户定位：ACR 仅为中转） | 在本机与服务器各验证一次：docker 实际请求端点只含本项目 ACR 与阿里云加速器；构建/部署日志无 docker.io 直连请求 |
+| PD-16 | **镜像供应链不依赖 Docker Hub 直连、不使用代理（用户硬性要求，纯国内环境）**：实际执行路径仅限三条国内链路——自有 ACR 单仓库（业务镜像，tag 前缀 `backend-<sha>`/`web-<sha>`）、mindskip 公共 ACR（`mysql:8.0.33`）、`mirrors.aliyun.com/alpine`（自建 `m408base` 基础镜像）；加速器仅作为白名单命中时（如 nginx）的可选加速，不作为依赖 | 在本机与服务器各验证一次：构建/部署日志只出现上述三条链路的端点，无 docker.io 直连请求 |
 
 ## 待确认决策
 
