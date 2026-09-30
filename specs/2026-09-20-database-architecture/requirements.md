@@ -1,17 +1,11 @@
 # Requirements — 数据库架构设计
 
-状态：**设计未完成**。运行时只读审计已执行（[`audit-report.md`](appendix/audit-report.md)）；
-隔离库设计测试 T1–T5 已执行并记录（[`design-test-plan.md`](appendix/design-test-plan.md) 第 5 节）；
-读写入口盘点完成（[`entry-inventory.md`](appendix/entry-inventory.md)）；数据契约初稿（[`data-contract.md`](appendix/data-contract.md)）；
-物理结构候选与隔离验证（[`physical-design.md`](appendix/physical-design.md)）；迁移方案与代表性演练
-（[`migration-plan.md`](appendix/migration-plan.md)、[`rehearsal-report.md`](appendix/rehearsal-report.md)）。
-Q-01 至 Q-13 已**全部拍板**：Q-01～Q-07、Q-13 于 2026-09-21 拍板（D-13～D-22）；
-**Q-08～Q-12 于 2026-09-23 按 [`decision-recommendations.md`](appendix/decision-recommendations.md)
-的推荐方案整体确认（D-23～D-27）**，简答题空答案口径为 D-28。
-第 43 题样本已核对（[`sample-2024-q43.md`](appendix/sample-2024-q43.md)，保真验证为"部分"，新发现 N-1～N-3）。
-**仍未收口**：第 3 节收尾设计（事务边界 DB-05/08、软删除下游失效语义、RAG 投影契约 DB-09、
-物理结构附录与候选约束设计测试）、第 5 节收敛（validation、管理端两份清单、文档同步、自我考核），
-见「本次设计的未完成项」。本轮只交付设计，不做迁移。
+状态：**重开定向（2026-09-30）——最终交付物 = 一个可新建新数据库的引导 SQL + 说明该库的 ER 文档（D-33）**。
+既成事实与设计已定稿入库（附录）：只读审计（`audit-report.md`）、设计测试 T1～T5（`design-test-plan.md`）、
+读写入口盘点（`entry-inventory.md`）、数据契约（`data-contract.md`，现为不变量+储备设计）、
+物理结构候选 1～11（`physical-design.md`，除极简派生外转储备）、迁移方案与演练（转参考）、
+治理决策 D-13～D-33。第 43 题样本核对见 `sample-2024-q43.md`。
+**Feature 完成仍需**：作者自我考核 + 具备 `DB_PASSWORD` 环境补跑红线测试。
 
 ## 目标与范围
 
