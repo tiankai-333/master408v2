@@ -1,9 +1,12 @@
 # 接口契约 — 页面动作、数据来源、状态与错误示例
 
-> **状态**：设计稿 v1.0（2026-09-23）。本文件是**页面—接口—数据库契约映射**，不是实现清单：
+> **状态**：设计稿 **v1.1（2026-09-24 修订：AI 运营优先定位）**。v1.0（2026-09-23）的矩阵与示例有效；
+> v1.1 变更：题目编辑端点转为 **AI 写入管道契约**（新增 §3.7：dry-run 校验/批量提交/作业查询），
+> 编辑器页面相关条目标注延后，新增 MCP 协议立场（§7.6）。修订处标注 v1.1。
+> 本文件是**页面—接口—数据库契约映射**，不是实现清单：
 > 标注 `[已有]` 的条目附代码依据（当前主干可复核）；`[待改]` / `[待新增]` 为设计目标，
 > **实施 Feature 完成前一律视为不存在**。任何页面不得在端点落地前渲染为可用功能。
-> **依据**：[`scope-and-pages.md`](scope-and-pages.md) P1～P16、[`flows-and-wireframes.md`](flows-and-wireframes.md) F-01～F-16、
+> **依据**：[`scope-and-pages.md`](scope-and-pages.md) P1～P17、[`flows-and-wireframes.md`](flows-and-wireframes.md) F-01～F-17、
 > [`../2026-09-20-database-architecture/data-contract.md`](../2026-09-20-database-architecture/appendix/data-contract.md)
 > （D-13～D-28、第 8 节可承诺/不可承诺清单）、
 > [`../2026-09-21-dual-client-account-conflict/requirements.md`](../2026-09-21-dual-client-account-conflict/requirements.md)（AUTH 契约）。
@@ -50,8 +53,8 @@
 | 页面动作 | 端点 | 标注 | 数据来源 / 契约 |
 | --- | --- | --- | --- |
 | 题目列表 | `POST /api/admin/question/page` | **改** | `QuestionController.java:40`。响应每行补：`version`（当前版本号）、`status`（1/2/3）、`displayReady`/`retrievalReady`（候选 10 列，或列表查询派生）、`sourceYear`；短标题改用 `title_text`（Q-10 已用旧 JSON，切换按 9.20 R-1~R-2 节奏） |
-| 题目回显（编辑） | `POST /api/admin/question/select/{id}` | **改** | `:72` → `getQuestionEditRequestVM`。响应补：`expectedVersion`（当前 `question_content.version`，D-16）、来源面板字段（`question_source`，D-18）、资源引用列表（`question_asset` 候选 9 列）。**回显读侧收口（选项读新表）属 9.20 读路径切换，不在本端点单独决定**（8.2 第 3 项约束） |
-| 保存（新建/更新） | `POST /api/admin/question/edit` | **改** | `:56`。请求补 `expectedVersion`（D-16）；块内容按 D-23 `content_blocks` schema；`*_text` 由后端重算（前端不提交）；同事务写三处（6.1）；冲突语义见 §4.1。**在 9.20 双写期结束前，本端点继续双写兼容表示** |
+| 题目回显（预览/编辑载荷） | `POST /api/admin/question/select/{id}` | **改** | `:72` → `getQuestionEditRequestVM`。响应补：`expectedVersion`（当前 `question_content.version`，D-16）、来源面板字段（`question_source`，D-18）、**写入者归属（v1.1）**、资源引用列表（`question_asset` 候选 9 列）。**回显读侧收口（选项读新表）属 9.20 读路径切换，不在本端点单独决定**（8.2 第 3 项约束）。v1.1：主要消费方 = 预览/版本历史 + AI 写入管道（表单延后） |
+| 保存（新建/更新） | `POST /api/admin/question/edit` | **改**（v1.1：消费方 = AI 写入管道，表单延后） | `:56`。请求补 `expectedVersion`（D-16）；块内容按 D-23 `content_blocks` schema；`*_text` 由后端重算（任何写入方不提交）；同事务写三处（6.1）；冲突语义见 §4.1。**在 9.20 双写期结束前，本端点继续双写兼容表示**。批量场景改走 §3.7 管道端点 |
 | 停用/恢复/紧急撤下 | `POST /api/admin/question/{id}/disable`、`/restore`、`/withdraw` | **新** | 写 `t_question.status`（1/2/3）+ `status_reason/status_update_user/status_update_time`（物理设计 §7）；请求带原因；下游为"标记+读时过滤"（7.3）。**旧 `POST /question/delete/{id}`（`:79`）冻结使用，仅保留兼容直至旧端退役** |
 | 版本历史 | `GET /api/admin/question/{id}/versions` | **新** | 读 `question_content` 全版本行：`version, is_current, published, published_at, create_time`（D-02/D-24，候选 8 列）；操作人暂无留痕列（缺 `create_user` 于版本行）→ 展示"缺失显式为空" |
 | 来源面板 | 随 `select/{id}` 返回（不单独开端点） | 新（并入） | `question_source`：`source_name, source_year, source_question_no, raw_ref, metadata`；`paper_name` 可空（3.5 待验证项按可空展示）；全缺时显示"无采集来源" |
@@ -94,11 +97,30 @@
 | 消息详情 | `GET /api/admin/message/{id}` | **新** | `t_message` + `t_message_user`（接收与已读计数）；修复旧端断链 |
 | 操作日志 | `POST /api/admin/user/event/page/list` | 已 | `UserController.java:51` |
 
-### 3.6 矩阵小结
+### 3.7 AI 写入管道（v1.1 新增；F-17 的契约面）
 
-- 已有且直接可用：**34** 个端点（含复用）；已有需改造：**6**；待新增：**8**
-  （待办、停用/恢复/撤下×3、版本历史、答卷详情、消息详情、RAG 状态×2 按页面动作计 8 项）；
-  冻结/延后：批量导入 ×2、评分、用量明细、检索日志。
+定位修订后，题目域的**受约束写入路径（sanctioned write path）** = 本管道。三个消费者共用同一批端点：
+管理端界面（作业记录/确认/验收）、dev-time AI Agent（经 CLI 壳，见 architecture §1.5）、
+未来的产品内 Agent（触发条件见 §7.6）。设计原则：**操作与协议分离**——管道是 Internal Operation +
+Confirmed Command（tech-stack 术语），不绑定任何 AI 协议。
+
+| 动作 | 端点 | 标注 | 契约 |
+| --- | --- | --- | --- |
+| 批量校验（dry-run，不落库） | `POST /api/admin/question/batch/validate` | **新** | 载荷与 commit 同构；返回结构化报告：逐题 schema 违例（D-23/五题型契约/D-22 编码）、重复题、资源引用缺失、`expectedVersion` 失效。**只发现问题不修复**（D-14 哲学）；无副作用，可反复调用 |
+| 批量提交（Confirmed Command） | `POST /api/admin/question/batch/commit` | **新** | 携带幂等键（客户端生成 UUID）+ 逐题 `expectedVersion`；**必须先经管理端界面人工确认**（L2）或携带确认凭据；逐题同事务双写（6.1），部分失败不回滚全批；`*_text` 后端重算；产出作业记录 |
+| 作业列表 | `GET /api/admin/question/batch/jobs` | **新** | 分页：批号、操作者（人工/脚本/AI）、类型、范围、成功/失败计数、状态（校验中/待确认/执行中/已完成/部分失败/已回滚） |
+| 作业详情 | `GET /api/admin/question/batch/jobs/{id}` | **新** | 逐题成败 + 失败原因 + 回滚动作记录；`[重试失败项]` 以同一幂等键复用 commit |
+| 写入者归属查询 | 随 `question/page`、`select/{id}` 返回（并入） | 新（并入） | 最后写入者：人工用户名 / 脚本批次号 / 作业号；无归属显式 `null`，前端标"未知"（D-18 同源：不推测） |
+
+管道红线：① AI 不得绕过管道直写生产库（直写仅限 9.20 隔离库演练）；② 冲突/错误响应**机读化**
+——`response` 内含稳定错误码 + 结构化明细（§4.1 的 `conflictType` 模式推广到全部校验错误），
+人类可读 `message` 只是附加；③ 幂等键相同 = 同一作业，重放返回原结果不重复执行（D-10）。
+
+### 3.8 矩阵小结
+
+- 已有且直接可用：**34** 个端点（含复用）；已有需改造：**6**；待新增：**12**
+  （v1.0 的 8 项 + v1.1 管道 4 项：批量校验、批量提交、作业列表、作业详情）；
+  冻结/延后：批量导入旧入口 ×2（由 §3.7 管道取代）、评分、用量明细、检索日志、题目编辑表单（页面延后，端点转管道消费）。
 - 每个 `[待新增]` 端点均在 `scope-and-pages.md` §4.2 页面清单中有唯一归属页面；
   不存在"为页面便利新造答案/版本/RAG 状态语义"的端点——状态字段全部引用 9.20 已定稿契约（§5）。
 
@@ -220,9 +242,15 @@ POST /api/admin/question/page
    前后端同批发布；本文件锁定**语义**不锁定数值。
 5. **本文件不含任何"已实现"声明**：`[已有]` 仅表示后端端点当前存在且行为可复核；
    其响应结构按本契约改造后才算满足管理端页面需要。
+6. **MCP 协议立场（v1.1）**：管道按"操作与协议分离"设计——§3.7 端点是本体；dev-time AI Agent
+   以薄 CLI 壳消费同一批端点（当前唯一 AI 客户端，成本≈0）；**本 Feature 不引入 MCP**。
+   MCP 是第 3 层协议换壳（触发制）：当真实出现第二个 AI 客户端、或需要工具被外部发现/复用时，
+   将同一批 Internal Operation 包装为 MCP server（对应 roadmap M6 进入条件："外部 AI 客户端接入"）。
+   若先建协议而后定操作，只会把漂移的 SQL 换成漂移的工具。
 
 ## 8. 变更记录
 
 | 日期 | 变更 | 依据 |
 | --- | --- | --- |
 | 2026-09-23 | 初稿：通用契约、认证契约、六组矩阵、六类示例、交叉核对表定稿 | 双端代码盘点；9.20 D-13～D-28；9.21 AUTH 契约 |
+| 2026-09-24 | **v1.1**：新增 §3.7 AI 写入管道（校验/提交/作业×4 + 写入者归属并入）、编辑端点消费方改管道、§3.8 计数更新（待新增 8→12）、§7.6 MCP 协议立场 | 用户定位修订（2026-09-24）；tech-stack Confirmed Command 术语；roadmap M6 条件 |

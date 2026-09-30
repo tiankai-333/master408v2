@@ -68,9 +68,18 @@ ECS 侧基座脚本执行与 mindskip mysql 拉取验证。
 
 ## 3. 公网安全加固
 
-- [ ] 审计 `security-ignore-urls` 与全部公开 Controller，形成逐项处置表（PD-05）：
-  `/api/test/**` 等调试入口生产禁用的实现方式（配置、Profile 或移除）先在本地验证。
-- [ ] 配置 HTTPS 与 HTTP→HTTPS 跳转，按 A-05 结论签发证书并部署续期机制。
+- [x] 审计 `security-ignore-urls` 与全部公开 Controller，形成逐项处置表（PD-05）——**已实施并实测
+  （2026-09-24，本地演练）**。关键发现：`anyRequest().permitAll()` 使配置收敛无法关闭 `/api/test/**`
+  （不在 student/admin 前缀内，永远兜底放行）。处置：SecurityConfigurer 改为默认拒绝
+  （`/api/test/**` denyAll + `/error` permitAll + `anyRequest().authenticated()`；dev 经 ignore-urls
+  首位匹配保留调试入口，零影响）；compose 以 `SPRING_APPLICATION_JSON` 将生产 ignore 表置空。
+  实测：登录业务响应正常（402 信封）；匿名题目/调试入口/注册/admin API 全部 `code:401`；
+  双端页面 200。注册默认关闭（A-06 拟定态），开注册=配置表加回一条。
+- [x] 配置 HTTPS 证书（2026-09-24）：Let's Encrypt HTTP-01 经 MVP nginx webroot 签发成功
+  （`/etc/letsencrypt/live/edu.wutiankai.cn/`，有效期至 2026-12-23），`certbot-renew.timer` 已启用。
+  compose nginx 启用 https.conf 时挂载 `/etc/letsencrypt` 即可。**遗留：`certbot renew --dry-run`
+  连续 3 次 403**（LE 验证节点视角；服务器本地与国内访问均 200）——疑似备案接入状态或境外路由
+  拦截，需用户在控制台核实 `wutiankai.cn` 备案接入商是否为阿里云；12 月续期前解决，不阻塞部署。
 - [ ] 实施限流与预算基线（PD-10）：nginx 层对登录/注册/AI 入口限流；核对后端已有
   `ai.resilience` 预算在公网配置下的取值是否仍然保守。
 - [ ] 密钥注入方式落地（PD-03）：生产 `.env` 仅存在于服务器；验证镜像层、日志、
@@ -88,8 +97,12 @@ ECS 侧基座脚本执行与 mindskip mysql 拉取验证。
   → 健康检查判定；形成文档化命令清单。
 - [ ] 制定回滚流程：镜像回退、迁移回滚策略（Flyway 前向兼容说明，不做自动降级迁移）、
   数据保全说明；明确哪些失败只能前滚修复。
-- [ ] 在服务器执行首次真实部署（PD-01），随后各执行一次升级与一次回滚演练（PD-09）。
-- [ ] 记录真实内存与带宽占用，对照内存分配表；3 Mbps 带宽下记录首屏与静态资源加载事实。
+- [x] 在服务器执行首次真实部署（PD-01）——**2026-09-24 完成：`edu.wutiankai.cn` 公网可访问（HTTPS）**。
+  实测：HTTPS 双端 200、301 跳转、证书链正确（至 2026-12-23）、公网登录 API 业务响应、
+  调试入口 401；服务器全栈内存 ~486 MiB（复测已回填 MEMORY-BUDGET）。发布记录见
+  `deploy/RELEASES.md`（⚠️ 首版含未提交修订，待用户 commit 后版本链严格化）。
+  部署日决策按拟定态执行：AI 未启用（legacy + 假 Key）、注册关闭——改动为纯配置，可随时翻转。
+- [ ] 升级与回滚演练各一次（PD-09）；发布/回滚索引已建（RELEASES.md），演练后补记录。
 
 完成条件：公网 HTTPS 可访问双端主流程；升级与回滚演练各有带日期记录；版本可追溯。
 
