@@ -42,12 +42,16 @@ public class RestLogoutSuccessHandler extends SimpleUrlLogoutSuccessHandler {
 
     @Override
     public void onLogoutSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
-        org.springframework.security.core.userdetails.User springUser = (org.springframework.security.core.userdetails.User) authentication.getPrincipal();
-        if (null != springUser) {
+        // Each client end logs out on its own, so a logout request can arrive without an identity
+        // (for example when the other end had already expired). That is still a successful logout.
+        Object principal = authentication == null ? null : authentication.getPrincipal();
+        if (principal instanceof org.springframework.security.core.userdetails.User springUser) {
             User user = userService.getUserByUserName(springUser.getUsername());
-            UserEventLog userEventLog = new UserEventLog(user.getId(), user.getUserName(), user.getRealName(), new Date());
-            userEventLog.setContent(user.getUserName() + " 登出了408Master 智能学习系统");
-            eventPublisher.publishEvent(new UserEvent(userEventLog));
+            if (null != user) {
+                UserEventLog userEventLog = new UserEventLog(user.getId(), user.getUserName(), user.getRealName(), new Date());
+                userEventLog.setContent(user.getUserName() + " 登出了408Master 智能学习系统");
+                eventPublisher.publishEvent(new UserEvent(userEventLog));
+            }
         }
         RestUtil.response(response, SystemCode.OK);
     }

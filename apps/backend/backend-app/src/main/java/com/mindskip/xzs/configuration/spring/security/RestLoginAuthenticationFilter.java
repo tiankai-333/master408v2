@@ -1,7 +1,5 @@
 package com.mindskip.xzs.configuration.spring.security;
 
-import com.mindskip.xzs.configuration.property.CookieConfig;
-
 import com.mindskip.xzs.utility.JsonUtil;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpMethod;
@@ -9,10 +7,10 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
 import org.springframework.security.web.authentication.rememberme.TokenBasedRememberMeServices;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -27,13 +25,36 @@ import java.io.InputStream;
  * @date 2021/12/25 9:45
  */
 public class RestLoginAuthenticationFilter extends AbstractAuthenticationProcessingFilter {
+
+    /**
+     * Legacy shared login entry, kept for callers written against the original single-client API.
+     */
+    public static final String LEGACY_LOGIN_URL = "/api/user/login";
+
+    /**
+     * Student client login entry.
+     */
+    public static final String STUDENT_LOGIN_URL = "/api/student/login";
+
+    /**
+     * Management client login entry.
+     */
+    public static final String ADMIN_LOGIN_URL = "/api/admin/login";
+
     private final org.slf4j.Logger logger = LoggerFactory.getLogger(RestLoginAuthenticationFilter.class);
 
     /**
      * Instantiates a new Rest login authentication filter.
+     *
+     * <p>Each client declares its end through its own entry point; the entry only selects the
+     * authentication context the login is stored in, and the granted role still comes from the
+     * account itself.</p>
      */
     public RestLoginAuthenticationFilter() {
-        super(PathPatternRequestMatcher.pathPattern(HttpMethod.POST, "/api/user/login"));
+        super(new OrRequestMatcher(
+                PathPatternRequestMatcher.pathPattern(HttpMethod.POST, LEGACY_LOGIN_URL),
+                PathPatternRequestMatcher.pathPattern(HttpMethod.POST, STUDENT_LOGIN_URL),
+                PathPatternRequestMatcher.pathPattern(HttpMethod.POST, ADMIN_LOGIN_URL)));
     }
 
     @Override
@@ -53,17 +74,6 @@ public class RestLoginAuthenticationFilter extends AbstractAuthenticationProcess
         setDetails(request, authRequest);
         return this.getAuthenticationManager().authenticate(authRequest);
 
-    }
-
-    /**
-     * Sets user details service.
-     *
-     * @param userDetailsService the user details service
-     */
-    void setUserDetailsService(UserDetailsService userDetailsService) {
-        RestTokenBasedRememberMeServices tokenBasedRememberMeServices = new RestTokenBasedRememberMeServices(CookieConfig.getName(), userDetailsService);
-        tokenBasedRememberMeServices.setTokenValiditySeconds(CookieConfig.getInterval());
-        setRememberMeServices(tokenBasedRememberMeServices);
     }
 
     private void setDetails(HttpServletRequest request, UsernamePasswordAuthenticationToken authRequest) {

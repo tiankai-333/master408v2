@@ -495,7 +495,11 @@ const agentCards = [
 ]
 
 const apis = [
-  { method: 'POST', path: '/api/user/login', desc: '管理端/学生端登录' },
+  { method: 'POST', path: '/api/admin/login', desc: '管理端登录（管理端会话）' },
+  { method: 'POST', path: '/api/admin/logout', desc: '管理端退出（只影响管理端）' },
+  { method: 'POST', path: '/api/student/login', desc: '学生端登录（学生端会话）' },
+  { method: 'POST', path: '/api/student/logout', desc: '学生端退出（只影响学生端）' },
+  { method: 'POST', path: '/api/user/login', desc: '旧公共登录入口（按角色进入对应端，兼容保留）' },
   { method: 'POST', path: '/api/student/ai/analyze', desc: 'AI 解析（非流式）' },
   { method: 'POST', path: '/api/student/ai/analyze-stream', desc: 'AI 解析 SSE 流式' },
   { method: 'POST', path: '/api/student/ai/workbench/stream', desc: 'AI 工作台统一入口' },

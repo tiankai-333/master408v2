@@ -23,9 +23,14 @@ public class RestTokenBasedRememberMeServices extends TokenBasedRememberMeServic
         super(key, userDetailsService);
     }
 
+    /**
+     * The login filter decides whether the user asked to be remembered and forwards the answer as a
+     * request attribute. Auto-login requests carry no such attribute, so an absent value means
+     * "not requested" instead of failing.
+     */
     @Override
     protected boolean rememberMeRequested(HttpServletRequest request, String parameter) {
-        return (boolean) request.getAttribute(DEFAULT_PARAMETER);
+        return Boolean.TRUE.equals(request.getAttribute(DEFAULT_PARAMETER));
     }
 
 }
