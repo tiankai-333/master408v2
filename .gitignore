@@ -163,3 +163,13 @@ data-local/
 .data-*/
 .tools/
 tmp/
+
+# 本地运维记录仅本地保存；不提交基础设施地址或凭据（与 deploy/ 产物同处，不双源）
+deploy/local/*.local.md
+
+# 部署：本地构建中间物不入库；.env.example 是模板必须入库
+deploy/build/
+!.env.example
+
+# sql-init 为 database/current 的部署副本（derived copy），单一事实源在 master408 仓库
+deploy/sql-init/*.sql

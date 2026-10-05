@@ -1,0 +1,12 @@
+# Web 静态镜像（学生端 /student/、管理端 /admin/，A-03：本机构建 dist 后传入）
+# 构建上下文 = deploy/，需先由 build-and-push.sh 生成 deploy/build/student-dist 与 admin-dist
+# 默认内置 HTTP 配置用于初次引导；服务器上可用 compose 卷挂载 nginx/https.conf 覆盖（见 README）
+# 基座用本地既有 nginx:1.25-alpine（PD-16：避免依赖 Docker Hub；v1 同款）
+FROM nginx:1.25-alpine
+
+COPY nginx/http.conf /etc/nginx/conf.d/default.conf
+COPY nginx/proxy-common.inc /etc/nginx/conf.d/proxy-common.inc
+COPY build/student-dist /usr/share/nginx/html/student
+COPY build/admin-dist /usr/share/nginx/html/admin
+
+EXPOSE 80 443

@@ -1,0 +1,22 @@
+# 后端运行时镜像（A-03：本机构建 jar，服务器不构建）
+# 构建上下文 = deploy/，需先由 build-and-push.sh 生成 deploy/build/backend.jar
+# 生产禁止在镜像层携带任何密钥（PD-03）：密钥全部经 compose env 注入
+# 基座为自建镜像（PD-16）：m408base:jre21 = alpine3.20 + openjdk21-jre（mirrors.aliyun.com/alpine），
+# 由 deploy/build-base-images.sh 构建；不得改回 Docker Hub 引用
+FROM m408base:jre21
+
+RUN addgroup -S app && adduser -S app -G app
+
+WORKDIR /app
+COPY build/backend.jar /app/app.jar
+RUN chown -R app:app /app
+USER app
+
+ENV SERVER_PORT=8003 \
+    TZ=Asia/Shanghai \
+    JAVA_OPTS=""
+
+EXPOSE 8003
+
+# JAVA_OPTS 经 .env/compose 注入内存上限（见 deploy/MEMORY-BUDGET.md）
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]

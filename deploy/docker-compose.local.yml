@@ -1,0 +1,8 @@
+# 本地演练覆盖（不改变生产 compose 的行为）：
+# - nginx 改映射到 18080，避开开发机常用端口
+# - 关闭 restart 策略，演练结束 docker compose down 即可全部清理（卷用 -v）
+services:
+  nginx:
+    ports: !override
+      - "18080:80"
+    restart: "no"

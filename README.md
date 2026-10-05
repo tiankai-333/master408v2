@@ -112,6 +112,8 @@ flowchart LR
 
 - [后端说明](apps/backend/README.md)
 - [前端说明](apps/frontend/README.md)
+- [功能规格与路线图](specs/sdd.md)
+- [面试准备资料导航](面试资料/README.md)
 
 ## 目录结构
 
@@ -123,6 +125,9 @@ master408v2/
 │  └─ frontend/
 │     ├─ student/           # 学生端，默认端口 8001
 │     └─ admin/             # 管理端，默认端口 8002
+├─ specs/                   # Feature 规格、验证与自我考核
+├─ docs/                    # 工程事实、技术债与历史记录
+├─ 面试资料/                # 学习手册、项目复盘与面试题
 ├─ README.md
 └─ .gitignore
 ```
@@ -141,7 +146,10 @@ master408v2/
 
 ### 1. 配置本地环境
 
-敏感配置请通过系统环境变量或本地 `.env` 提供，不要写入仓库。
+敏感配置请通过进程环境变量提供，不要写入仓库。若保存在本地忽略的 `.env`，
+必须先由启动工具加载到进程环境；下面的 Maven 命令不会自动读取该文件。
+先确认 `java -version` 为 21，并让 `JAVA_HOME` 指向本机 JDK 21。
+数据库 URL 必须显式指定：应用默认库为 `xzs`，下例使用独立的 `master408_v2`，不要混淆。
 
 ```powershell
 $env:DB_URL='jdbc:mysql://127.0.0.1:3306/master408_v2?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai'
@@ -153,10 +161,20 @@ $env:REDIS_PORT='6379'
 
 # 默认使用 Legacy 链路；启用 Spring AI 时再设置以下变量
 $env:AI_ENGINE='spring'
+$env:AI_PROVIDER_SOURCE='environment'
+$env:SPRING_AI_CHAT_MODEL='openai'
 $env:AI_CHAT_API_KEY='<your-api-key>'
 $env:AI_CHAT_BASE_URL='<openai-compatible-base-url>'
 $env:AI_CHAT_MODEL='<model-name>'
 ```
+
+仅运行普通业务时可不启用 Spring AI。环境配置模式还会装配独立 EmbeddingModel，
+需设置有效的 `AI_EMBEDDING_API_KEY`、`AI_EMBEDDING_BASE_URL`、`AI_EMBEDDING_MODEL`，
+不要把仅支持对话的服务地址当成向量服务。数据库供应商配置模式则使用
+`AI_PROVIDER_SOURCE=database`，并配置对应数据库记录与解密主密钥。
+
+若本地配置启用了 `AI_RAG_VECTOR_ENABLED=true`，先启动 Qdrant 并确认 gRPC 端口可达；
+向量组件初始化时不可连接可能阻止后端启动。“检索时单路降级”不等于“启动不需要 Qdrant”。
 
 完整数据库结构由 Flyway 管理，首次启动时会执行：
 
@@ -213,71 +231,8 @@ mvn -f apps/backend/backend-app/pom.xml test
 
 多数 AI 测试使用 Mock ChatModel，不会调用真实模型。数据库契约测试和 Redis 集成测试需要相应的本地基础设施。
 
-当前完整后端测试结果（2026-07-28）：**67 tests，0 failures，0 errors，0 skipped**。
-
-### 固定评测集实测结果
-
-以下结果由管理端异步评测接口运行并写入 `ai_evaluation_run` /
-`ai_evaluation_case_result`，不是单元测试伪造数据。
-
-测试环境：2026-07-28，本地单实例，数据集
-`408-prompt-baseline-v1`，DeepSeek OpenAI-compatible API。固定集共 12 条：
-9 条调用真实模型，3 条为输入契约和失败隔离用例，不计入真实模型汇总。
-
-| 指标 | 实测结果 |
-| --- | ---: |
-| 真实模型用例 | 9 |
-| 通过 | 4 / 9 |
-| 平均质量分 | 81.11 / 100 |
-| 估算输入 Token | 3,929 |
-| 估算输出 Token | 3,783 |
-| 平均端到端延迟 | 5,667 ms |
-| p95 端到端延迟 | 10,434 ms |
-| 费用 | N/A（该模型尚未配置可信单价，不把数据库中的 0 当作零成本） |
-
-失败并未隐藏：5 条未通过用例中，3 条触发概念覆盖门槛，2 条触发回答长度门槛。
-这表明当前确定性评分适合做回归信号，但“出现某个关键词”不等于答案一定正确；
-下一步需要人工标注集和模型裁判交叉验证。
-
-### 流式首 Token（TTFT）实测
-
-TTFT 从进入 Spring AI 流式 Gateway 开始计时，到收到供应商第一个实际内容 chunk
-为止，并与完整模型调用耗时一起写入 `t_ai_usage_log`。同一环境下连续执行 5 条
-408 知识问答得到：
-
-| 样本 | TTFT | 完整模型调用 |
-| --- | ---: | ---: |
-| 进程与线程 | 6,937 ms | 11,538 ms |
-| TCP 三次握手 | 4,377 ms | 13,104 ms |
-| 虚拟内存 | 2,892 ms | 9,797 ms |
-| 局部性原理 | 5,856 ms | 13,559 ms |
-| 死锁必要条件 | 3,186 ms | 5,611 ms |
-| **汇总** | **平均 4,650 ms；p50 4,377 ms；p95 6,937 ms** | **平均 10,722 ms** |
-
-这里只是用于验证指标采集和发现慢样本的小样本测试，不代表容量结论。正式性能测试还需
-固定模型参数、预热、扩大样本并记录并发度、错误率、p95/p99 和 Token 规模。
-
-### 模型失败的精确分类与处理
-
-项目先读取结构化 HTTP 状态和强类型网络异常；只有兼容客户端丢失状态信息时，才回退到
-异常链消息识别。分类结果进入 Micrometer 指标，重试策略依据失败语义决定，而不是对所有异常
-盲目重试。
-
-| 失败类型 | 识别依据 | 是否重试 | 处理 |
-| --- | --- | --- | --- |
-| `RATE_LIMIT` | HTTP 429 / rate-limit | 是 | 尊重 Retry-After，指数退避 + jitter，上限次数 |
-| `TIMEOUT` | Timeout 类型异常 | 是 | 有界重试，连续失败计入熔断 |
-| `SERVER_ERROR` | HTTP 5xx | 是 | 有界重试，可进入供应商降级 |
-| `CONNECTION_ERROR` | Connect/Socket 异常 | 是 | 有界重试，记录失败指标 |
-| `AUTHENTICATION` | HTTP 401/403 | 否 | 直接失败并检查密钥/权限，避免扩大费用 |
-| `BAD_REQUEST` | 其他 HTTP 4xx | 否 | 返回参数/能力错误，不重复发送错误请求 |
-| `CAPACITY` | 本地并发舱壁拒绝 | 否 | 快速拒绝，保护线程与下游配额 |
-| `CIRCUIT_OPEN` | 熔断器开启 | 否 | 快速失败或走允许的备用链路 |
-| `UNKNOWN` | 无可靠结构化证据 | 否 | 保守失败、保留 errorId，不猜测重试 |
-
-额外的流式约束：首 Token 发出后绝不重放调用，否则用户会收到重复正文；若首 Token
-之前失败，才允许进入安全回退。相关隔离测试位于
-`AiFailureClassifierTest`、`AiResiliencePolicyTest` 和 `AiAnalysisGatewayTest`。
+历史运行数据已归档到 [2026-07-28 评测与稳定性记录](面试资料/项目复盘/2026-07-28-评测与稳定性记录.md)。
+这些数字是当时的小样本记录，不代表当前提交的全量测试结果或生产容量；本次文档整理未重跑测试。
 
 ## 安全说明
 
@@ -295,6 +250,10 @@ TTFT 从进入 Spring AI 流式 Gateway 开始计时，到收到供应商第一�
 
 已经完成的主链路包括 Spring AI 接入、Legacy 回退、流式响应、Redis 会话记忆、
 受控工具调用、教学 Prompt 管理与测试、固定评测、统一可观测、调用稳定性和混合 RAG。
+
+这里描述已有实现，不代表作者已通过全部自我考核，也不意味着当前提交已重新全量验收。
+管理端整体重建与特殊格式题目的展示/RAG 数据契约仍在规划设计中，以 [roadmap](specs/roadmap.md)
+及各 Feature 的 validation 为准。
 
 当前边界：
 

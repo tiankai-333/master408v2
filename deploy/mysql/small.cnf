@@ -1,0 +1,11 @@
+# 2 GiB 单机内存收敛配置（deploy/MEMORY-BUDGET.md，PD-02）
+# 代价：缓冲变小、连接数上限 60 —— 学习项目真实边界，不做性能承诺
+[mysqld]
+innodb_buffer_pool_size = 128M
+performance_schema      = OFF
+max_connections         = 60
+skip-name-resolve
+tmp_table_size          = 16M
+max_heap_table_size     = 16M
+sort_buffer_size        = 256K
+join_buffer_size        = 256K

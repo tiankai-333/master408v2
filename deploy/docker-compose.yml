@@ -1,0 +1,132 @@
+# Master408 v2 生产编排（单机 Docker Compose，specs/2026-09-23-public-deploy）
+# 原则：只有 nginx 对外发布端口；MySQL/Redis/Qdrant 仅 internal 网络（PD-06）
+# 内存：全部服务设上限，预算依据见 deploy/MEMORY-BUDGET.md（PD-02）
+# Qdrant：首期关闭（A-02）；启用时 `docker compose --profile vector up -d`
+#          并把 .env 中 AI_RAG_VECTOR_ENABLED 置 true、QDRANT_HOST=qdrant
+name: master408
+
+services:
+  mysql:
+    # mindskip 公共 ACR 镜像（v1 验证过；本地由 mindskip 版 retag 为 mysql:8.0.33）
+    image: mysql:8.0.33
+    restart: unless-stopped
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/small.cnf:/etc/mysql/conf.d/z-small.cnf:ro
+      # 遗留全量 DDL+种子前置（PD-16 补充）：V1__baseline.sql 非自足（假设 legacy 库存在），
+      # 首次初始化必须先导入 sql-init（副本；单一事实源 = master408/database/current）
+      - ./sql-init:/docker-entrypoint-initdb.d:ro
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: xzs
+      MYSQL_USER: xzs
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      TZ: Asia/Shanghai
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    mem_limit: 700m
+    logging: &logging
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    networks: [internal]
+
+  redis:
+    # 自建基座（PD-16）：m408base:redis7 = alpine3.20 + apk redis（mirrors.aliyun.com/alpine）
+    image: m408base:redis7
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "volatile-lru", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    mem_limit: 128m
+    logging: *logging
+    networks: [internal]
+
+  backend:
+    # 单仓库方案（A-03）：wutiankai/master408，tag 前缀区分业务镜像
+    image: ${REGISTRY:-crpi-z118pytqkuhi1rn1.cn-wulanchabu.personal.cr.aliyuncs.com}/wutiankai/master408:backend-${TAG}
+    restart: unless-stopped
+    # 拓扑常量写死在这里；密钥与可变参数经 env_file 注入（PD-03）
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      # PD-05 生产认证面：ignore 表清空（默认拒绝）——调试入口 denyAll、注册关闭（A-06 默认）。
+      # 开注册时在此 JSON 数组加 "/api/student/user/register"，并同步 nginx auth 限流段
+      # 小程序（specs/2026-09-30-wx-domain-update WX-02）：唯一保留 "/api/wx/**"——wx 认证由 MVC
+      # TokenHandlerInterceptor 执行（WebMvcConfiguration 挂 /api/wx/**），security 层放行≠匿名；
+      # 若清空则 /api/wx/** 落入 anyRequest().authenticated()，小程序请求（无 Spring 凭据）全量 401。
+      SPRING_APPLICATION_JSON: '{"system":{"security-ignore-urls":["/api/wx/**"]}}'
+      SERVER_PORT: "8003"
+      DB_URL: jdbc:mysql://mysql:3306/xzs?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+      DB_USERNAME: xzs
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      QDRANT_HOST: ${QDRANT_HOST:-qdrant}
+      FLYWAY_ENABLED: "true"
+      TZ: Asia/Shanghai
+    env_file:
+      - .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # 接受任意 HTTP 状态（含 401）：进程在响应即视为存活；健康端点放行在 PD-05/07 处理
+      test: ["CMD-SHELL", "wget -S -q -O /dev/null http://127.0.0.1:8003/actuator/health 2>&1 | grep -q 'HTTP/'"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
+    mem_limit: 768m
+    logging: *logging
+    networks: [internal]
+
+  nginx:
+    image: ${REGISTRY:-crpi-z118pytqkuhi1rn1.cn-wulanchabu.personal.cr.aliyuncs.com}/wutiankai/master408:web-${TAG}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    # HTTPS（2026-09-24 证书已签发）：https.conf + 证书目录 + ACME webroot
+    volumes:
+      - ./nginx/https.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/nginx/ssl:ro
+      - ./certbot/www:/var/www/certbot:ro
+    depends_on:
+      - backend
+    mem_limit: 64m
+    logging: *logging
+    networks: [internal]
+
+  qdrant:
+    # v1.9.7 = 本机既有库存（v1 验证过）；避免 Docker Hub 依赖（PD-16）
+    image: qdrant/qdrant:v1.9.7
+    restart: unless-stopped
+    profiles: [vector]
+    volumes:
+      - qdrant-data:/qdrant/storage
+    # 不发布端口；仅 backend 经 internal 网络访问（PD-06）
+    mem_limit: 512m
+    logging: *logging
+    networks: [internal]
+
+volumes:
+  mysql-data:
+  redis-data:
+  qdrant-data:
+
+networks:
+  internal:
+    driver: bridge
