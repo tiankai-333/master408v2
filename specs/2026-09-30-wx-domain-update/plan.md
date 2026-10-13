@@ -2,28 +2,31 @@
 
 ## 任务组 1：仓库侧配置（已具备全部事实，可立即执行）
 
-- [ ] 1.1 `deploy/docker-compose.yml`：`SPRING_APPLICATION_JSON` 的 ignore 表保留
+- [x] 1.1 `deploy/docker-compose.yml`：`SPRING_APPLICATION_JSON` 的 ignore 表保留
       `"/api/wx/**"`，注释写明 WX-02 依据与 PD-05 的关系；
-- [ ] 1.2 `deploy/nginx/https.conf`：`auth/bind`、`auth/checkBind`、`user/register` 三个匿名
+- [x] 1.2 `deploy/nginx/https.conf`：`auth/bind`、`auth/checkBind`、`user/register` 三个匿名
       端点加入 auth 限流档（WX-04）；
-- [ ] 1.3 `deploy/.env.example`：`WECHAT_APP_ID/SECRET` 移出"可选第三方"分组，标注必需与
+- [x] 1.3 `deploy/.env.example`：`WECHAT_APP_ID/SECRET` 移出"可选第三方"分组，标注必需与
       缺失行为（WX-03）；
-- [ ] 1.4 `deploy/README.md`：新增小程序接入节（env 必填项、同步方式、reload、验证指引）。
+- [x] 1.4 `deploy/README.md`：新增小程序接入节（env 必填项、同步方式、reload、验证指引）。
 
 ## 任务组 2：服务器侧执行（部署机操作，需用户或授权会话）
 
-- [ ] 2.1 服务器 `.env` 填写 `WECHAT_APP_ID` / `WECHAT_APP_SECRET`；
-- [ ] 2.2 同步 `docker-compose.yml` 与 `nginx/https.conf` 到服务器 `deploy/` 目录；
-- [ ] 2.3 应用变更：`docker compose up -d backend`（env 变更需重建容器）；
-      nginx 先 `docker compose exec nginx nginx -t` 校验，再 `docker compose restart nginx`；
+- [x] 2.1 服务器 `.env` 填写 `WECHAT_APP_ID` / `WECHAT_APP_SECRET`（2026-10-13，凭据由用户提供；
+      本地备份于 gitignored `deploy/local/wechat-credentials.local.md`）；
+- [x] 2.2 同步 `docker-compose.yml` 与 `nginx/https.conf` 到服务器 `deploy/` 目录
+      （`/opt/m408/deploy`，2026-10-06 同步并复核）；
+- [x] 2.3 应用变更：`docker compose up -d backend`（2026-10-13 重建后 40s healthy）；
+      nginx 先 `docker compose exec nginx nginx -t` 校验（通过），再 `docker compose restart nginx`；
 - [ ] 2.4 失败回退：将 `SPRING_APPLICATION_JSON` 还原为清空态并重建 backend（回退只影响小程序
-      可达性，不影响 web 双端，属低风险回退）。
+      可达性，不影响 web 双端，属低风险回退）。**预案未触发。**
 
 ## 任务组 3：验证与收尾
 
-- [ ] 3.1 按 validation.md 执行 V-01～V-07 curl 证据（记录日期与原始输出摘要）；
+- [x] 3.1 按 validation.md 执行 V-01～V-07 curl 证据（2026-10-13 全部通过，实际输出与形态
+      注记见 validation.md；V-07b web 双端登录待用户）；
 - [ ] 3.2 用户真机验证（WX-15 四步），结果记录进 validation.md；
-- [ ] 3.3 roadmap 本项状态更新；修订记录进 git 提交信息（spec 纪律）。
+- [x] 3.3 roadmap 本项状态更新；修订记录进 git 提交信息（spec 纪律）。
 
 ## 执行顺序与依赖
 
