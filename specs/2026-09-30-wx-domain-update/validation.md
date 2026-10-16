@@ -39,7 +39,37 @@ WECHAT 键，与 requirements 根因描述一致。
 HTTP 200 + 业务体码 401，属项目既定响应形态而非本次变更引入；按意图（拒绝生效、无泄露）
 判定通过，特此注记。
 
+## 外部阻断记录（2026-10-16）：域名未备案被阿里云精准拦截，WX-15 暂停
+
+10-13 晚 devtools 会话（referer=`servicewechat.com/wx217587125a29c7b5/devtools`）在 nginx
+日志留下完整证据：checkBind→bind 成功→试卷列表→打开试卷 #258→题目 HTML（408-real-2022/
+2023 题干+解析）经 `edu.wutiankai.cn/student/question-html/` 全部 200——**WX-15 前两步
+（绑定链路、题库/试卷）在阻断生效前已走通**；作答/交卷/AI 无请求记录，未验证。
+
+10-16 起域名无法访问，四组对照实验定位为**未备案域名阻断**（非服务器/小程序问题）：
+
+| 测试 | 结果 | 含义 |
+| --- | --- | --- |
+| HTTP + Host: edu.wutiankai.cn | 403 | 拦截页注入（nginx 本应 301，403 为外部注入） |
+| HTTP + Host: test.example.com | 301 | 同服务器同端口，无关 Host 正常到达 nginx |
+| HTTPS 直连 IP（无 SNI） | 200 | TLS 与静态站完全正常 |
+| HTTPS + SNI=edu.wutiankai.cn | 000 | 握手被按域名内容掐断 |
+
+服务器本机自测 TLS 200、证书有效至 2026-12-23；nginx/四容器均健康。与服务器清单
+（server-inventory 2026-09-23）"ICP 备案状态尚未复核"的风险预警一致：部署约两周后
+阻断生效。**WX-15 余下步骤与 V-07b 在备案通过前无法执行**；恢复路径为用户完成
+edu.wutiankai.cn 的 ICP 备案（阿里云控制台，需备案服务码绑定本 ECS），备案号下发后
+阻断解除，再续跑 WX-15 后两步与 web 双端登录。
+
 ## 真机验证（用户执行，WX-15）
+
+前置修正（2026-10-13，用户授权下的边界变更）：模拟器"网络出错"根因定位为小程序工程
+`app.js` 的 `baseAPI`/`staticBase` 仍指向已停用旧域名 `mastertooling.shop`（curl 实测连接
+失败），且该域名不在 request 合法域名白名单。经用户确认后修改小程序工程
+（`master408/source/wx/xzs-student/app.js`，仅此两行，仓库外工程）：
+`https://edu.wutiankai.cn` 与 `https://edu.wutiankai.cn/student/`。此修改超出原 WX-01
+"只动服务器侧"边界，由用户 2026-10-13 现场授权；WX-05 保护项（dev 配置、wx 认证机制）未动。
+此前的"最新上传"含旧域名，**真机/体验版须以此修正重新上传后方可验证**。
 
 - [ ] 微信开发者工具或真机：启动后 checkBind 链路正常（未绑定→绑定页；已绑定→直接进入）；
 - [ ] 题库/试卷列表可加载；
