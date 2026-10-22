@@ -1,0 +1,33 @@
+# 新库（master408 v0）本地切片配置（specs/2026-10-13 第一步）。
+# 仅在 spring.profiles.active 含 newdb 时生效；全部键走环境变量，无默认口令。
+# 注意：newdb profile 下旧库主数据源照常装配，DB_USERNAME / DB_PASSWORD 仍必填。
+#
+# /api/newdb/** 的 Spring Security 放行只在本 profile 生效（列表整体覆盖 application.yml，
+# 不带 profile 时旧安全清单保持逐字节不变）；实际鉴权由 NewdbAuthFilter 执行。
+system:
+  security-ignore-urls:
+    - /api/newdb/**
+    - /api/wx/**
+    - /api/admin/upload/configAndUpload
+    - /api/admin/upload/auth
+    - /api/student/user/register
+    - /api/test/**
+
+newdb:
+  ds:
+    url: ${NEWDB_DB_URL:jdbc:mysql://127.0.0.1:3306/master408?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${NEWDB_DB_USERNAME:root}
+    password: ${NEWDB_DB_PASSWORD:}
+    maximum-pool-size: ${NEWDB_DB_POOL_MAX:4}
+  admin:
+    # 空值 = 登录端点恒 401（不提供默认账号）；账号口令见 deploy/local/newdb-admin.local.md
+    username: ${NEWDB_ADMIN_USER:}
+    password: ${NEWDB_ADMIN_PASSWORD:}
+  token-ttl: ${NEWDB_TOKEN_TTL:8h}
+  importer:
+    # 门控：带 newdb profile 启动不等于必然重放导入
+    enabled: ${NEWDB_IMPORT_ENABLED:false}
+    file: ${NEWDB_IMPORT_FILE:v1-reference/crawler/data/exam_questions.json}
+    years: ${NEWDB_IMPORT_YEARS:2011,2024}
+    per-year-limit: ${NEWDB_IMPORT_PER_YEAR:5}
+    batch-tag: ${NEWDB_IMPORT_BATCH_TAG:seed-local-first-2026w43}

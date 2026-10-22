@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 新库 question 表 SQL。注意：位于 mapper/newdb/ 子目录，旧工厂的
+     classpath:mapper/*.xml glob 不跨目录，不会加载本文件（双向隔离）。 -->
+<mapper namespace="com.mindskip.xzs.newdb.repository.NewdbQuestionMapper">
+
+    <sql id="selectWithSubject">
+        SELECT q.id, q.question_type, q.subject_id, s.name AS subject_name, q.score, q.difficult,
+               q.source_name, q.source_year, q.source_question_no, q.source_ref, q.stem_html,
+               q.analysis_html, q.stem_text, q.correct, q.answer_text, q.status, q.status_reason,
+               q.display_ready, q.license_tag, q.batch_id, b.batch_tag, q.create_time, q.update_time
+        FROM question q
+        LEFT JOIN subject s ON s.id = q.subject_id
+        LEFT JOIN import_batch b ON b.id = q.batch_id
+    </sql>
+
+    <select id="selectBySourceRef" resultType="com.mindskip.xzs.newdb.domain.NewdbQuestionDO">
+        <include refid="selectWithSubject"/>
+        WHERE q.source_ref = #{sourceRef}
+        LIMIT 1
+    </select>
+
+    <select id="selectDetail" resultType="com.mindskip.xzs.newdb.domain.NewdbQuestionDO">
+        <include refid="selectWithSubject"/>
+        WHERE q.id = #{id}
+        LIMIT 1
+    </select>
+
+    <insert id="insert" parameterType="com.mindskip.xzs.newdb.domain.NewdbQuestionDO"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO question (question_type, subject_id, score, difficult, source_name,
+            source_year, source_question_no, source_ref, stem_html, analysis_html, stem_text,
+            correct, answer_text, status, status_reason, display_ready, license_tag, batch_id)
+        VALUES (#{questionType}, #{subjectId}, #{score}, #{difficult}, #{sourceName},
+            #{sourceYear}, #{sourceQuestionNo}, #{sourceRef}, #{stemHtml}, #{analysisHtml},
+            #{stemText}, #{correct}, #{answerText}, #{status}, #{statusReason},
+            #{displayReady}, #{licenseTag}, #{batchId})
+    </insert>
+
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*) FROM question
+    </select>
+
+    <sql id="pageWhere">
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND q.stem_text LIKE CONCAT('%', #{keyword}, '%')
+            </if>
+            <if test="questionType != null">
+                AND q.question_type = #{questionType}
+            </if>
+            <if test="status != null">
+                AND q.status = #{status}
+            </if>
+            <if test="sourceYear != null">
+                AND q.source_year = #{sourceYear}
+            </if>
+        </where>
+    </sql>
+
+    <select id="countPage" resultType="long">
+        SELECT COUNT(*) FROM question q
+        <include refid="pageWhere"/>
+    </select>
+
+    <select id="page" resultType="com.mindskip.xzs.newdb.domain.NewdbQuestionDO">
+        SELECT q.id, q.question_type, s.name AS subject_name, q.source_name, q.source_year,
+               q.source_question_no, q.stem_text, q.correct, q.status, q.display_ready,
+               q.license_tag, b.batch_tag, q.create_time
+        FROM question q
+        LEFT JOIN subject s ON s.id = q.subject_id
+        LEFT JOIN import_batch b ON b.id = q.batch_id
+        <include refid="pageWhere"/>
+        ORDER BY q.id
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="countByYear" resultType="com.mindskip.xzs.newdb.domain.NewdbCountItem">
+        SELECT source_year AS stat_key, COUNT(*) AS stat_count
+        FROM question GROUP BY source_year ORDER BY source_year
+    </select>
+
+    <select id="countByType" resultType="com.mindskip.xzs.newdb.domain.NewdbCountItem">
+        SELECT question_type AS stat_key, COUNT(*) AS stat_count
+        FROM question GROUP BY question_type ORDER BY question_type
+    </select>
+
+    <select id="countByStatus" resultType="com.mindskip.xzs.newdb.domain.NewdbCountItem">
+        SELECT status AS stat_key, COUNT(*) AS stat_count
+        FROM question GROUP BY status ORDER BY status
+    </select>
+</mapper>

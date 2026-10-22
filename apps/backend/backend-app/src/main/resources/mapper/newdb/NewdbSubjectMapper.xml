@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 新库 subject 表 SQL。隔离方式同 NewdbQuestionMapper.xml。 -->
+<mapper namespace="com.mindskip.xzs.newdb.repository.NewdbSubjectMapper">
+
+    <insert id="upsertByName">
+        INSERT INTO subject (name) VALUES (#{name})
+        ON DUPLICATE KEY UPDATE name = name
+    </insert>
+
+    <select id="idByName" resultType="java.lang.Integer">
+        SELECT id FROM subject WHERE name = #{name} LIMIT 1
+    </select>
+</mapper>

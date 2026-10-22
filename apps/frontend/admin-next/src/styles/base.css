@@ -1,0 +1,58 @@
+/* 状态色与基础布局（三态状态：1 正常 / 2 停用 / 3 紧急撤下） */
+:root {
+  --status-ok: #67c23a;
+  --status-disabled: #e6a23c;
+  --status-withdrawn: #f56c6c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: #f5f7fa;
+  color: #303133;
+}
+
+.page-card {
+  background: #fff;
+  border-radius: 4px;
+  padding: 16px;
+}
+
+.muted {
+  color: #909399;
+  font-size: 12px;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.stat-card {
+  background: #fff;
+  border-radius: 4px;
+  padding: 16px;
+}
+
+.stat-card .stat-value {
+  font-size: 28px;
+  font-weight: 600;
+}
+
+/* 题目 HTML 预览（stem_html / analysis_html 已在后端消毒） */
+.question-html .q-stem p,
+.question-html .q-analysis p {
+  margin: 4px 0;
+  line-height: 1.7;
+}
+
+.question-html .q-option {
+  margin: 4px 0;
+  line-height: 1.7;
+}

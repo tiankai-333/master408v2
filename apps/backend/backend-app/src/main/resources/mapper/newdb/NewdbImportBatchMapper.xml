@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 新库 import_batch 表 SQL（血缘头）。隔离方式同 NewdbQuestionMapper.xml。 -->
+<mapper namespace="com.mindskip.xzs.newdb.repository.NewdbImportBatchMapper">
+
+    <select id="selectByTag" resultType="com.mindskip.xzs.newdb.domain.NewdbImportBatchDO">
+        SELECT id, batch_tag, source_type, started_at, finished_at, note
+        FROM import_batch
+        WHERE batch_tag = #{batchTag}
+        LIMIT 1
+    </select>
+
+    <insert id="insert" parameterType="com.mindskip.xzs.newdb.domain.NewdbImportBatchDO"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO import_batch (batch_tag, source_type, started_at)
+        VALUES (#{batchTag}, #{sourceType}, #{startedAt})
+    </insert>
+
+    <update id="markFinished">
+        UPDATE import_batch
+        SET finished_at = #{finishedAt}, note = #{note}
+        WHERE id = #{id}
+    </update>
+
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*) FROM import_batch
+    </select>
+
+    <select id="lastStartedAt" resultType="java.time.LocalDateTime">
+        SELECT MAX(started_at) FROM import_batch
+    </select>
+</mapper>
