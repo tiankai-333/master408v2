@@ -55,10 +55,11 @@ def set_offline() -> None:
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
 
-def local_model_files() -> tuple[str, dict[str, str]]:
-    """解析本地缓存模型目录并计算实际文件哈希（权重/tokenizer/pooling 配置）。
+def local_model_info() -> tuple[str, dict[str, str], int]:
+    """解析本地缓存模型目录：实际文件哈希 + sentence_bert_config 的 max_seq_length。
 
-    返回 (本地目录, {相对文件名: sha256})；离线解析，不联网。
+    返回 (本地目录, {相对文件名: sha256}, max_seq_length)；离线解析，不联网，
+    不加载权重即可供缓存校验使用。
     """
     set_offline()
     from huggingface_hub import snapshot_download
@@ -70,7 +71,14 @@ def local_model_files() -> tuple[str, dict[str, str]]:
     for f in sorted(root.rglob("*")):
         if f.is_file() and not f.name.startswith("."):
             files[f.relative_to(root).as_posix()] = sha256_file(f)
-    return str(root), files
+    sbert_max_seq = MAX_LENGTH
+    cfg = root / "sentence_bert_config.json"
+    if cfg.exists():
+        try:
+            sbert_max_seq = int(json.loads(cfg.read_text(encoding="utf-8"))["max_seq_length"])
+        except Exception:
+            sbert_max_seq = MAX_LENGTH
+    return str(root), files, sbert_max_seq
 
 
 def _finite(matrix: np.ndarray) -> bool:
@@ -86,20 +94,22 @@ class SemanticIndex:
         set_offline()
         from sentence_transformers import SentenceTransformer
 
+        # 先固定身份再加载（修 self.model_revision 先用后赋值）
+        self.model_repo = MODEL_REPO
+        self.model_revision = MODEL_REVISION
+        self.model_dir = model_dir
+        self.model_files = model_files or {}
+        self.max_length = MAX_LENGTH
+        self.normalize = True
         if model_dir:
             set_offline()
         load_path = model_dir or f"{MODEL_REPO}"
         self.model = SentenceTransformer(
-            load_path, revision=self.model_revision if not model_dir else None,
+            load_path, revision=None if model_dir else self.model_revision,
             device="cpu", local_files_only=True, trust_remote_code=False,
-            model_kwargs=None)
-        self.model_repo = MODEL_REPO
-        self.model_revision = MODEL_REVISION
-        self.model_dir = model_dir or load_path
-        self.model_files = model_files or {}
-        self.max_length = MAX_LENGTH
+            model_kwargs={"use_safetensors": True})
+        # 实际模型参数（加载后读取，写入缓存清单供严格匹配）
         self.actual_max_seq_length = int(self.model.max_seq_length)
-        self.normalize = True
         texts = [d.text for d in docs]
         n_truncated = sum(
             1 for t in texts
@@ -187,7 +197,7 @@ def load_matrix(path: Path, expect_sha: str, rows: int, cols: int) -> np.ndarray
 
 
 def load_cache(cache_dir: Path, docs, query_ids: list[str], query_texts: list[str],
-               expect_model_files: dict[str, str],
+               expect_model_files: dict[str, str], actual_max_seq_length: int,
                expect_repo: str = MODEL_REPO,
                expect_revision: str = MODEL_REVISION) -> tuple[np.ndarray, np.ndarray]:
     """加载向量缓存并校验：模型 repo/revision/**本地文件哈希**/语料指纹/行序/
@@ -198,9 +208,16 @@ def load_cache(cache_dir: Path, docs, query_ids: list[str], query_texts: list[st
         raise CacheMismatchError(
             f"model mismatch: {manifest.get('model_repo')}@"
             f"{manifest.get('model_revision')}")
-    actual_files = manifest.get("model_files_sha256") or {}
+    actual_files = manifest.get("model_files_sha256")
+    if actual_files is None:
+        raise CacheMismatchError("vector manifest 缺 model_files_sha256（拒绝猜测）")
+    if set(actual_files) != set(expect_model_files):
+        only_cache = sorted(set(actual_files) - set(expect_model_files))
+        only_local = sorted(set(expect_model_files) - set(actual_files))
+        raise CacheMismatchError(
+            f"model file set mismatch: cache-only={only_cache} local-only={only_local}")
     for name, digest in expect_model_files.items():
-        if actual_files.get(name) != digest:
+        if actual_files[name] != digest:
             raise CacheMismatchError(
                 f"model file mismatch: {name}（本地模型文件与缓存清单不一致）")
     fp = corpus_fingerprint(docs)
@@ -216,10 +233,16 @@ def load_cache(cache_dir: Path, docs, query_ids: list[str], query_texts: list[st
     encode = manifest.get("encode_params") or {}
     if encode.get("normalize") is not True or encode.get("max_length") != MAX_LENGTH:
         raise CacheMismatchError("encode params mismatch（归一化/截断口径变更）")
+    if encode.get("actual_max_seq_length") != actual_max_seq_length:
+        raise CacheMismatchError(
+            f"actual_max_seq_length mismatch: cache={encode.get('actual_max_seq_length')} "
+            f"current={actual_max_seq_length}")
+    for key in ("doc_matrix_sha256", "query_matrix_sha256"):
+        if not manifest.get(key):
+            raise CacheMismatchError(f"vector manifest 缺 {key}（拒绝无哈希向量）")
     doc_matrix = load_matrix(cache_dir / "doc_matrix.npy",
-                             manifest.get("doc_matrix_sha256") or
-                             hashlib.sha256((cache_dir / "doc_matrix.npy").read_bytes()).hexdigest(),
-                             len(docs), int(manifest["matrix_cols"]))
+                             manifest["doc_matrix_sha256"], len(docs),
+                             int(manifest["matrix_cols"]))
     query_matrix = load_matrix(cache_dir / "query_matrix.npy",
                                manifest["query_matrix_sha256"], len(query_ids),
                                doc_matrix.shape[1])

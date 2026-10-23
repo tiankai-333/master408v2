@@ -15,14 +15,14 @@ from pathlib import Path
 
 import numpy as np
 
-from m4_compare import main, rrf_fuse
+from m4_compare import compute_routes, main, rrf_fuse
 from m4_semantic import (
     CacheMismatchError,
     corpus_fingerprint,
     load_cache,
     save_cache,
 )
-from rag_smoke.harness import Doc
+from rag_smoke.harness import BM25Index, Doc, Query
 
 
 def _fingerprint(docs) -> str:
@@ -69,16 +69,16 @@ class FakeIndex:
 class RrfFuseTest(unittest.TestCase):
     def test_known_fusion(self) -> None:
         # BM25: a,b,c；语义: b,d → RRF(b)=1/61+1/62 最高，其次 a、d
-        fused = rrf_fuse(["a", "b", "c"], ["b", "d"], {}, {}, 3)
+        fused = rrf_fuse(["a", "b", "c"], ["b", "d"], 3)
         self.assertEqual([f["doc_id"] for f in fused], ["b", "a", "d"])
         self.assertAlmostEqual(fused[0]["rrf"], 1 / 61 + 1 / 62, places=6)
 
     def test_tie_stable_by_doc_id(self) -> None:
-        fused = rrf_fuse(["x", "y"], ["x", "y"], {}, {}, 2)
+        fused = rrf_fuse(["x", "y"], ["x", "y"], 2)
         self.assertEqual([f["doc_id"] for f in fused], ["x", "y"])
 
     def test_topk_limits(self) -> None:
-        fused = rrf_fuse(["a", "b", "c", "d"], ["a"], {}, {}, 2)
+        fused = rrf_fuse(["a", "b", "c", "d"], ["a"], 2)
         self.assertEqual(len(fused), 2)
 
 
@@ -100,7 +100,8 @@ class CacheContractTest(unittest.TestCase):
             docs = self._docs()
             self._save(cache, docs, ["q1"], ["查询文本一"])
             m, q = load_cache(cache, docs, ["q1"], ["查询文本一"],
-                              FakeIndex(docs).model_files, "test-model", "rev0")
+                              FakeIndex(docs).model_files, 128,
+                              "test-model", "rev0")
             self.assertEqual(m.shape, (2, 4))
             self.assertEqual(q.shape, (1, 4))
 
@@ -112,7 +113,7 @@ class CacheContractTest(unittest.TestCase):
             self._save(cache, docs, ["q1"], ["原始查询文本"])
             with self.assertRaises(CacheMismatchError) as cm:
                 load_cache(cache, docs, ["q1"], ["改写后的查询文本"],
-                           FakeIndex(docs).model_files, "test-model", "rev0")
+                           FakeIndex(docs).model_files, 128, "test-model", "rev0")
             self.assertIn("query text", str(cm.exception))
 
     def test_model_file_change_rejected(self) -> None:
@@ -124,7 +125,8 @@ class CacheContractTest(unittest.TestCase):
             changed = dict(FakeIndex(docs).model_files)
             changed["model.safetensors"] = "bbb"
             with self.assertRaises(CacheMismatchError) as cm:
-                load_cache(cache, docs, ["q1"], ["文本"], changed, "test-model", "rev0")
+                load_cache(cache, docs, ["q1"], ["文本"], changed, 128,
+                           "test-model", "rev0")
             self.assertIn("model file mismatch", str(cm.exception))
 
     def test_corpus_change_rejected(self) -> None:
@@ -135,7 +137,7 @@ class CacheContractTest(unittest.TestCase):
             changed = docs + [Doc("d3", "文档三", "新增内容。")]
             with self.assertRaises(CacheMismatchError):
                 load_cache(cache, changed, ["q1"], ["文本"],
-                           FakeIndex(docs).model_files, "test-model", "rev0")
+                           FakeIndex(docs).model_files, 128, "test-model", "rev0")
 
     def test_query_mapping_change_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -144,7 +146,7 @@ class CacheContractTest(unittest.TestCase):
             self._save(cache, docs, ["q1"], ["文本"])
             with self.assertRaises(CacheMismatchError):
                 load_cache(cache, docs, ["q2"], ["文本"],
-                           FakeIndex(docs).model_files, "test-model", "rev0")
+                           FakeIndex(docs).model_files, 128, "test-model", "rev0")
 
 
 class MatrixVerificationTest(unittest.TestCase):
@@ -169,7 +171,7 @@ class MatrixVerificationTest(unittest.TestCase):
                 [npy.read_bytes()[-1] ^ 0xFF]))  # 破坏一个字节
             with self.assertRaises(CacheMismatchError):
                 load_cache(cache, docs, ["q1"], ["文本"],
-                           idx.model_files, "test-model", "rev0")
+                           idx.model_files, 128, "test-model", "rev0")
 
     def test_nan_matrix_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -178,7 +180,7 @@ class MatrixVerificationTest(unittest.TestCase):
                                           np.full((1, 4), np.nan, dtype=np.float32))
             with self.assertRaises(CacheMismatchError) as cm:
                 load_cache(cache, docs, ["q1"], ["文本"],
-                           idx.model_files, "test-model", "rev0")
+                           idx.model_files, 128, "test-model", "rev0")
             self.assertIn("非有限值", str(cm.exception))
 
     def test_shape_mismatch_rejected(self) -> None:
@@ -207,7 +209,53 @@ class ChangedTopkRejectedTest(unittest.TestCase):
             rc = main(["--corpus-dir", str(corpus), "--queries", str(queries),
                        "--verify-manifest", str(frozen), "--cache-dir",
                        str(root / "c"), "--out", str(root / "out"), "--topk", "3"])
-            self.assertEqual(rc, 2)
+            self.assertEqual(rc, 3)
+
+
+class ComputeRoutesTest(unittest.TestCase):
+    """集成反例：能抓住"MRR 混入其他检索路排名"的旧缺陷。"""
+
+    def _docs(self):
+        # d1 是目标题；d2..d6 为干扰
+        return [Doc(f"d{i}", f"文档{i}", f"内容{i}。") for i in range(1, 7)]
+
+    def _queries(self):
+        return [Query("q1", "目标查询词 d1", "normal", ["d1"], "目标一")]
+
+    def test_semantic_mrr5_not_polluted_by_bm25_tail(self) -> None:
+        # 语义矩阵使目标 d1 排第 6（Top5 外）；BM25 把 d1 排第 1。
+        # 旧实现把 BM25 补尾拼进语义排名 → semantic mrr>0（污染）；
+        # 新口径 MRR@5 只看语义 Top5 → 未召回=0。
+        docs = self._docs()
+        queries = self._queries()
+        bm25_index = BM25Index(docs)
+        # 语义矩阵：6 维单位阵，行序 [d1..d6]，查询向量使 d1 排最后
+        eye = np.eye(6, dtype=np.float32)
+        doc_matrix = eye
+        query_matrix = -eye[:1]  # 与 d1 负相关最重 → d1 排最后
+        result = compute_routes(docs, queries, bm25_index, doc_matrix,
+                                query_matrix, topk=5)
+        sem = result["metrics"]["semantic"]
+        self.assertEqual(sem["mrr@5"], 0.0, "Top5 外未召回必须记 0（不补尾）")
+        self.assertAlmostEqual(sem["full_mrr"], 1 / 6, places=6,
+                               msg="语义自身全排名 full MRR 另记（d1 排第 6）")
+        sem_row = result["rows"]["semantic"][0]
+        self.assertNotIn("d1", sem_row["ranking_topk"])
+        # BM25 路自身：d1 rank1
+        self.assertEqual(result["rows"]["bm25"][0]["first_relevant_rank_in_top5"], 1)
+
+    def test_hybrid_candidates_limited_to_two_top5(self) -> None:
+        docs = self._docs()
+        queries = self._queries()
+        bm25_index = BM25Index(docs)
+        doc_matrix = np.eye(6, dtype=np.float32)
+        query_matrix = np.eye(6, dtype=np.float32)[:1]
+        result = compute_routes(docs, queries, bm25_index, doc_matrix,
+                                query_matrix, topk=5)
+        hyb = result["rows"]["hybrid"][0]
+        # 混合候选必须 ⊆ 两路 Top5 并集（固定 Top5 融合，不引入 Top5 之外文档）
+        union = set(result["rows"]["bm25"][0]["ranking_topk"]) |             set(result["rows"]["semantic"][0]["ranking_topk"])
+        self.assertTrue(set(hyb["ranking_topk"]) <= union)
 
 
 if __name__ == "__main__":
