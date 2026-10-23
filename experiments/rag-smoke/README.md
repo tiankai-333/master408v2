@@ -82,3 +82,23 @@ python -m unittest discover -s tests   # 23/23（合成 14 + 真实输入回归 
 限制：查询集为**构造的已知题目定位初标**（GLM 初标待抽核，非金标/非用户日志）；
 单相关标签非穷尽；**20/20 是已知目标命中，不是 RAG 准确率**；image-dependent
 命中不代表图可理解；无答案关键词缺失核对只是辅助手段；词法基线非向量/混合对照。
+
+## M4：本地三路检索对照（BM25 / 真实语义向量 / RRF 混合，私有输出）
+
+模型：本地 HF 缓存 `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`
+@ `e8f8c211…`（Apache-2.0，458MB，仅 CPU；离线强制、safetensors、无
+trust_remote_code）。输入复用 M3 冻结 470 题/24 初标（私有）。输出私有
+`data-private/m4/`（向量/原题/标签/结果不进 Git）。
+
+```bash
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 python m4_compare.py \
+  --corpus-dir <M3私有>/corpus --queries <M3私有>/queries.jsonl \
+  --verify-manifest <M3私有>/manifest.json \
+  --cache-dir <私有>/m4/vector-cache --out <私有>/m4/run-001
+```
+
+安全边界：向量缓存绑定模型 repo/revision/**本地文件哈希**/语料指纹/行序/
+**查询文本哈希**/编码参数，错配拒绝；矩阵哈希/形状/有限值核验，
+`allow_pickle=False`。timing 分段（BM25 建索引/文档 embedding/query 编码/
+检索+融合，非端到端）。限制：查询为构造初标非金标；20/20 非准确率；
+RRF 60/等权与 128 窗口为固定预设，结果仅对当前配置有效；混合未超 BM25。
