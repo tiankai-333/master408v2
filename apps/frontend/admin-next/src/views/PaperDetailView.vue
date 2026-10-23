@@ -179,7 +179,10 @@ const analysisSourceLabel = ref('')
 function updateAnalysisSource(q) {
   const src = q?.assets?.analysis_source
   if (src && src.file) {
-    analysisSourceLabel.value = `旧爬虫 ${src.file}（候选·未逐题核审，仅年份/题号/答案/题干启发式对账）`
+    const deep = src.verify && String(src.verify.method).startsWith('stem-sentences')
+    analysisSourceLabel.value = deep
+      ? `旧爬虫 ${src.file}（候选·同题核对通过：题干逐句 ${src.verify.stem_sentences}、选项 ${src.verify.options}、答案一致；内容准确性未审校）`
+      : `旧爬虫 ${src.file}（候选·未逐题核审，仅年份/题号/答案/题干启发式对账）`
   } else if (q?.questionType === 5) {
     analysisSourceLabel.value = 'HTML 来源页（solution 块原文）'
   } else {

@@ -301,20 +301,68 @@ def extract_paper(html_path: Path, images_dirs: list[Path] | None = None,
     }
 
 
+def _sentences(text: str, min_len: int = 8) -> list[str]:
+    parts = [re.sub(r"\s+", "", s) for s in re.split(r"[。；;：:（）()\n]", str(text or ""))]
+    return [s for s in parts if len(s) >= min_len]
+
+
+def _split_legacy_options(raw: str) -> dict[str, str]:
+    out = {}
+    for part in re.split(r"(?=[ABCD]\.)", str(raw or "").strip()):
+        m = re.match(r"([ABCD])\.(.*)", part, re.S)
+        if m:
+            out[m.group(1)] = re.sub(r"\s+", "", m.group(2))
+    return out
+
+
+def _deep_verify(q: dict, rec: dict) -> dict | None:
+    """probe 失败后的完整同题核对（逐条证据，非门槛放水）：
+    a) legacy 题干每个 ≥8 字句（去空白）都出现在 HTML 题干纯文本中——题干全文
+       覆盖（允许顺序不同/表格内嵌）；
+    b) legacy 全部非空选项逐字出现在 HTML 同字母选项中；
+    c) 答案双源一致（调用方已保证，此处复列入证据）。
+    全部通过返回核对证据 dict；否则 None（保持未匹配）。"""
+    hq = re.sub(r"\s+", "", BeautifulSoup(q["stem_html"], "html.parser").get_text())
+    sents = _sentences(rec.get("question"))
+    if not sents:
+        return None
+    hit = [s for s in sents if s in hq]
+    if len(hit) != len(sents):
+        return None
+    lo = _split_legacy_options(rec.get("options"))
+    ho = {o["key"]: re.sub(r"\s+", "",
+                           BeautifulSoup(o["html"], "html.parser").get_text())
+          for o in q["options"]}
+    nonempty = {k: v for k, v in lo.items() if v}
+    opt_hit = sum(1 for k, v in nonempty.items() if v in ho.get(k, ""))
+    if len(nonempty) == 0 or opt_hit != len(nonempty):
+        return None
+    if (rec.get("answer") or "").strip() != q["correct"]:
+        return None
+    return {
+        "method": "stem-sentences+options+answer",
+        "stem_sentences": f"{len(hit)}/{len(sents)}",
+        "options": f"{opt_hit}/{len(nonempty)}",
+        "answer_agrees": True,
+        "reason": "题干重排或表格/图形内嵌于 HTML 题干（legacy 与 HTML 逐句/逐选项一致）",
+    }
+
+
 def reconcile_legacy(papers: list[dict], legacy_path: Path) -> dict:
     """旧爬虫 exam_questions.json（纯文本）→ 单选解析交叉对账与补入。
 
-    匹配判定（按序，全部满足才算 RELIABLE）：
-    1. (year, question_number) 主键命中且该题当前 analysis_html 为空（不覆盖已有内容）；
-    2. answer 与 HTML 双源答案一致（不一致 → CONFLICT，不补、隔离报告）；
-    3. 旧题干文本的显著片段（前 24 个非空白字符）出现在 HTML 题干纯文本中
-       （不匹配 → UNMATCHED，不补）。
+    匹配判定（两档，均为可复现实证）：
+    - probe 档：(year,question_number) 命中 + answer 双源一致 + legacy 题干前 24 个
+      非空白字符出现在 HTML 题干纯文本中；
+    - deep 档（probe 失败时）：完整同题核对——legacy 题干逐句（≥8 字句全覆盖）、
+      全部非空选项逐字命中同字母选项、答案一致；任一不满足保持未匹配。
     补入内容：`<p>` + HTML 转义后的纯文本解析（不做富文本伪装、不覆盖 HTML 源），
-    question.analysis_source 记录来源与 legacy 记录哈希。
+    analysis_source 记录来源指纹与所用的核对证据。
     """
     legacy = json.loads(legacy_path.read_text(encoding="utf-8"))
     by_key = {(r["year"], r["question_number"]): r for r in legacy}
-    stats = {"matched": 0, "answer_conflict": 0, "unmatched": 0, "already_present": 0}
+    stats = {"matched": 0, "matched_probe": 0, "matched_deep_verify": 0,
+             "answer_conflict": 0, "unmatched": 0, "already_present": 0}
     conflicts, unmatched = [], []
     for paper in papers:
         year = paper["year"]
@@ -339,12 +387,18 @@ def reconcile_legacy(papers: list[dict], legacy_path: Path) -> dict:
             stem_flat = re.sub(r"\s+", "", stem_text)
             legacy_stem = re.sub(r"\s+", "", str(rec.get("question") or ""))
             probe = legacy_stem[:24]
-            if not probe or probe not in stem_flat:
-                stats["unmatched"] += 1
-                unmatched.append({"year": year, "no": q["no"],
-                                  "reason": "stem probe not found",
-                                  "probe": probe[:24]})
-                continue
+            verify = None
+            if probe and probe in stem_flat:
+                verify = {"method": "stem-probe+answer", "probe": probe[:24],
+                          "answer_agrees": True}
+            else:
+                verify = _deep_verify(q, rec)
+                if verify is None:
+                    stats["unmatched"] += 1
+                    unmatched.append({"year": year, "no": q["no"],
+                                      "reason": "probe and deep-verify both failed",
+                                      "probe": probe[:24]})
+                    continue
             analysis_text = str(rec.get("analysis") or "").strip()
             if not analysis_text:
                 stats["unmatched"] += 1
@@ -355,8 +409,31 @@ def reconcile_legacy(papers: list[dict], legacy_path: Path) -> dict:
                 "file": legacy_path.name,
                 "sha256": hashlib.sha256(legacy_path.read_bytes()).hexdigest(),
                 "record_fields": "year,question_number,answer,question,analysis",
+                "verify": verify,
             }
             stats["matched"] += 1
+            if verify["method"].startswith("stem-probe"):
+                stats["matched_probe"] += 1
+            else:
+                stats["matched_deep_verify"] += 1
+    # 两源合并后的逐卷解析警告重生成（替代"来源站不提供"旧口径）
+    for paper in papers:
+        mc = [q for q in paper["questions"] if q["question_type"] == 1]
+        legacy_n = sum(1 for q in mc if q.get("analysis_source"))
+        html_n = sum(1 for q in paper["questions"]
+                     if q["question_type"] == 5 and q["analysis_html"])
+        none_n = sum(1 for q in mc if not q["analysis_html"])
+        kept = [w for w in paper["warnings"] if "外链图" in w]
+        if legacy_n:
+            kept.append(f"单选解析 {legacy_n} 题补自旧爬虫 exam_questions.json（候选·未逐题核审）")
+        if none_n:
+            kept.append(f"单选解析 {none_n} 题：两源均未关联（待核，明细见 reconcile-analysis.json）")
+        if html_n == 0:
+            kept.append("综合题解析 0 题（异常，请核查）")
+        paper["warnings"] = kept
+        paper["warning_count_related"] = {"analysis_legacy": legacy_n,
+                                          "analysis_none": none_n,
+                                          "analysis_html": html_n}
     return {"stats": stats, "conflicts": conflicts, "unmatched": unmatched}
 
 
