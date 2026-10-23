@@ -238,6 +238,8 @@ mvn -f apps/backend/backend-app/pom.xml test
 
 管理端 × newdb 切片在本机通过真实浏览器 8 步主链路验收（登录/守卫/统计/筛选/详情/404 反馈/退出）与 9 个隔离测试，仅代表本地已验证事实，不代表公网、微信端或完整 Agent 能力。约 2 分钟演示路径与范围边界见 [本地管理切片演示](docs/showcase/local-admin-demo.md)。
 
+无需数据库或模型密钥的公开复现入口（富内容提取 6 项、离线词法评测、公开 Loop 回归 7 项、前端构建）见 [公开复现入口](docs/showcase/public-repro-2026-10-23.md)。
+
 ## 安全说明
 
 - API Key、数据库口令、Redis 口令和主密钥只能来自环境变量或本地忽略配置；
