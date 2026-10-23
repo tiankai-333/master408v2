@@ -19,7 +19,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-CATEGORIES = {"normal", "paraphrase", "confusable", "unanswerable"}
+CATEGORIES = {"normal", "paraphrase", "confusable", "unanswerable", "image-dependent"}
 
 # BM25 参数固定并写入 manifest，保证可复现。
 BM25_K1 = 1.5
@@ -226,19 +226,50 @@ def sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def build_manifest(root: Path, topk: int) -> dict:
-    corpus_dir = root / "data" / "corpus"
-    files = [
-        FileHash(f.relative_to(root).as_posix(), sha256_file(f))
-        for f in sorted(corpus_dir.glob("*.md"))
-    ]
+def build_manifest(corpus_dir: Path, queries_path: Path, topk: int) -> dict:
+    """按本次运行**实际**语料/查询生成 manifest（不再假设合成固定路径）。
+
+    corpus 键为文件名（跨机器可核对）；queries_sha256 为查询文件字节哈希。
+    """
+    files = [(f.name, sha256_file(f)) for f in sorted(corpus_dir.glob("*.md"))]
     return {
         "harness_version": "0.1.0",
-        "corpus": {p.relative_path: p.sha256 for p in files},
-        "queries_sha256": sha256_file(root / "data" / "queries.jsonl"),
+        "corpus_dir": str(corpus_dir),
+        "corpus_count": len(files),
+        "corpus": {name: digest for name, digest in files},
+        "queries_path": str(queries_path),
+        "queries_sha256": sha256_file(queries_path),
         "params": {"ranker": "bm25", "k1": BM25_K1, "b": BM25_B, "topk": topk,
                    "tokenizer": "cjk-bigram+ascii-word, title x2"},
     }
+
+
+def verify_against_frozen(corpus_dir: Path, queries_path: Path,
+                          frozen: dict, topk: int) -> list[str]:
+    """对照冻结 manifest 校验本次实际输入；返回不匹配项列表（空=通过）。
+
+    校验：语料文件集合与逐文件哈希、查询文件哈希、参数（含**实际传入的 topk**
+    ——以冻结 K 构造 actual 会漏掉改 K 仍通过的漏洞）。任何差异即拒绝运行，
+    防止篡改语料/查询或错配 manifest 后照跑。
+    """
+    problems = []
+    actual = build_manifest(corpus_dir, queries_path, topk)
+    frozen_corpus = frozen.get("corpus") or {}
+    actual_corpus = actual["corpus"]
+    for name, digest in frozen_corpus.items():
+        if actual_corpus.get(name) != digest:
+            problems.append(f"corpus {name}: 哈希不符或缺失（frozen={digest[:12]}）")
+    for name in actual_corpus:
+        if name not in frozen_corpus:
+            problems.append(f"corpus {name}: 冻结清单外的新文件")
+    if actual["queries_sha256"] != frozen.get("queries_sha256"):
+        problems.append("queries: 哈希与冻结 manifest 不符")
+    fp = frozen.get("params") or {}
+    ap = actual["params"]
+    for key in ("ranker", "k1", "b", "tokenizer", "topk"):
+        if fp.get(key) != ap.get(key):
+            problems.append(f"params.{key}: frozen={fp.get(key)!r} actual={ap.get(key)!r}")
+    return problems
 
 
 @dataclass

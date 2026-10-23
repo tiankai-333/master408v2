@@ -57,3 +57,28 @@ BM25 分数（词法检索不会拒绝任何查询，分数非零 ≠ 证据存�
 - 只有词法 BM25 基线；没有向量、混合检索、重排或任何模型实测，对比留待真实环境接入。
 - 语料为原创合成小样本，结果不能外推到生产语料或真实用户问题分布。
 - 未实现"无证据"判据，只有分数记录；回答生成与引用回看不在本交付块。
+
+## M3：真实 470 题固定语料与词法基线（私有快照，代码公开）
+
+真实语料快照、查询集与基线输出按**私有来源**处理（worktree 父目录
+`data-private/m3/`，不入 Git）——已有私有快照**不等于**公开从零数据可复现；
+从零复现需自行从候选库（M1 产物）导出。
+
+安全复跑入口（凭据走环境变量，不入命令历史）：
+
+```bash
+export M3_DB_USER=... M3_DB_PASSWORD=...   # 本地忽略文件注入，勿写死
+python real_corpus_export.py --db-url jdbc:mysql://127.0.0.1:3306/master408_candidate \
+  --out <私有目录>
+python run.py --topk 5 \
+  --corpus-dir <私有目录>/corpus --queries <私有目录>/queries.jsonl \
+  --verify-manifest <私有目录>/manifest.json --out <私有目录>/baseline-run-001
+python -m unittest discover -s tests   # 23/23（合成 14 + 真实输入回归 9）
+```
+
+`--verify-manifest` 对照冻结 manifest（语料逐文件哈希/queries/参数含 topk），
+不符即拒绝运行且不写结果。`timing.json` 独立计时（仅建索引+逐查询，无端到端）。
+
+限制：查询集为**构造的已知题目定位初标**（GLM 初标待抽核，非金标/非用户日志）；
+单相关标签非穷尽；**20/20 是已知目标命中，不是 RAG 准确率**；image-dependent
+命中不代表图可理解；无答案关键词缺失核对只是辅助手段；词法基线非向量/混合对照。
