@@ -14,10 +14,10 @@ export default defineConfig({
     entries: ['index.html']
   },
   server: {
-    port: 8001,
+    port: 8018,
     proxy: {
       '/api': {
-        target: 'http://localhost:8003',
+        target: 'http://localhost:8016',
         changeOrigin: true
       }
     }

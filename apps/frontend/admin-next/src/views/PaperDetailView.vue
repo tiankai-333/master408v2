@@ -68,9 +68,10 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="90">
+        <el-table-column label="操作" width="140">
           <template #default="{ row }">
             <el-button size="small" type="primary" link @click="openQuestion(row.no)">详情</el-button>
+            <el-button size="small" type="warning" link @click="editQuestion(row)">编辑</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -163,6 +164,13 @@ function goBack() {
   } else {
     router.push({ name: 'papers' })
   }
+}
+
+async function editQuestion(row) {
+  // 跨库自增 id 不一致：按 source_ref（跨库唯一键）定位 m2 题目
+  const detail = await fetchPaperQuestion(route.params.id, row.no)
+  const ref = detail.response.sourceRef
+  router.push({ name: 'm2-question-edit', query: { ref } })
 }
 
 function openQuestion(no) {

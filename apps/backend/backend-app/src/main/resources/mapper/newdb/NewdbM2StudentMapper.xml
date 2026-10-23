@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- M2 学生端适配 SQL：题面一律不含 correct/analysis/answer_text（未交卷隐藏，
+     交卷后回看经 review 查询按绑定版本给出）。归属隔离：所有 bind 读写带 student_id。 -->
+<mapper namespace="com.mindskip.xzs.newdb.repository.NewdbM2StudentMapper">
+
+    <select id="listPapers" resultType="map">
+        SELECT id, name, source_year, question_count FROM paper ORDER BY source_year
+    </select>
+
+    <select id="selectPaper" resultType="map">
+        SELECT id, name, source_year, question_count FROM paper
+        WHERE id = #{paperId} LIMIT 1
+    </select>
+
+    <select id="selectPaperQuestions" resultType="map">
+        SELECT q.id AS question_id, q.question_type, q.source_question_no,
+               q.current_version_no, q.current_version_id AS version_id,
+               s.name AS subject_name, q.stem_html, q.assets_json
+        FROM paper p
+        JOIN question q ON JSON_CONTAINS(p.question_ids, CAST(q.id AS JSON))
+        LEFT JOIN subject s ON s.id = q.subject_id
+        WHERE p.id = #{paperId}
+        ORDER BY CAST(q.source_question_no AS UNSIGNED)
+    </select>
+
+    <!-- 学生视角题面：剥 correct/analysis/answer_text -->
+    <select id="selectQuestionStudentView" resultType="map">
+        SELECT q.id AS question_id, q.question_type, q.current_version_no,
+               q.stem_html, q.assets_json, q.source_year, q.source_question_no,
+               s.name AS subject_name
+        FROM question q LEFT JOIN subject s ON s.id = q.subject_id
+        WHERE q.id = #{id} LIMIT 1
+    </select>
+
+    <select id="selectQuestionIdsByVersionIds" resultType="java.lang.Long">
+        SELECT id FROM question WHERE id IN
+        <foreach collection="versionIds" item="v" open="(" separator="," close=")">#{v}</foreach>
+    </select>
+
+    <!-- 重复请求保护：同学生同卷已有 active 绑定则恢复，不新建 -->
+    <select id="selectActiveGroup" resultType="map">
+        SELECT bind_group, MIN(bound_at) AS bound_at FROM answer_bind
+        WHERE student_id = #{studentId} AND paper_id = #{paperId}
+          AND status = 'active' AND bind_group IS NOT NULL
+        GROUP BY bind_group LIMIT 1
+    </select>
+
+    <select id="selectActiveBinds" resultType="map">
+        SELECT b.id, b.question_id, b.version_id, b.version_no, b.bind_token,
+               b.question_type, b.pending_manual,
+               v.stem_html, v.assets_json
+        FROM answer_bind b JOIN question_version v ON v.id = b.version_id
+        WHERE b.student_id = #{studentId} AND b.bind_group = #{bindGroup}
+          AND b.status = 'active'
+        ORDER BY CAST(b.question_id AS UNSIGNED)
+    </select>
+
+    <select id="selectGroupStatus" resultType="map">
+        SELECT bind_group,
+               SUM(status = 'submitted') AS submitted_count,
+               COUNT(*) AS total_count
+        FROM answer_bind
+        WHERE student_id = #{studentId} AND bind_group = #{bindGroup}
+        GROUP BY bind_group LIMIT 1
+    </select>
+
+    <insert id="insertBind" parameterType="map">
+        INSERT INTO answer_bind (bind_token, question_id, version_id, version_no,
+            status, student_id, paper_id, bind_group, question_type, pending_manual)
+        VALUES (#{b.bind_token}, #{b.question_id}, #{b.version_id},
+            #{b.version_no}, 'active', #{b.student_id}, #{b.paper_id},
+            #{b.bind_group}, #{b.question_type}, #{b.pending_manual})
+    </insert>
+
+    <!-- 交卷后回看：绑定版本题面 + 答案/解析（单选）/作答文本；综合题标待人工 -->
+    <select id="selectBindsForReview" resultType="map">
+        SELECT b.id, b.question_id, b.version_no, b.answer_text, b.status,
+               b.pending_manual, b.question_type,
+               v.stem_html, v.analysis_html, v.correct, v.assets_json,
+               q.source_question_no, s.name AS subject_name
+        FROM answer_bind b
+        JOIN question_version v ON v.id = b.version_id
+        JOIN question q ON q.id = b.question_id
+        LEFT JOIN subject s ON s.id = q.subject_id
+        WHERE b.student_id = #{studentId} AND b.bind_group = #{bindGroup}
+        ORDER BY CAST(b.question_id AS UNSIGNED)
+    </select>
+
+    <update id="submitBind">
+        UPDATE answer_bind
+        SET status = 'submitted', answer_text = #{answerText},
+            pending_manual = #{pendingManual}, submitted_at = NOW()
+        WHERE id = #{id}
+    </update>
+</mapper>

@@ -46,6 +46,7 @@ const router = createRouter({
         }
       ]
     },
+    { path: '/m2', name: 'M2Papers', component: () => import('@/views/m2/index.vue'), meta: { title: 'M2 新题库', bodyBackground: '#fbfbfb' } },
     {
       path: '/question',
       component: () => import('@/layout/index.vue'),

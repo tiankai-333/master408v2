@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- M2 候选库（master408_m2_candidate）专用 SQL：含版本/作答绑定扩展表。
+     仅在 NEWDB_DB_URL 指向 m2 库时可用。 -->
+<mapper namespace="com.mindskip.xzs.newdb.repository.NewdbM2Mapper">
+
+    <select id="selectQuestionIdBySourceRef" resultType="java.lang.Long">
+        SELECT id FROM question WHERE source_ref = #{sourceRef} LIMIT 1
+    </select>
+
+    <select id="selectQuestionCurrent" resultType="map">
+        SELECT q.id, q.question_type, q.current_version_id, q.current_version_no,
+               q.edited_manual, q.stem_html, q.analysis_html, q.correct,
+               q.answer_text, q.assets_json, q.source_ref, q.source_name,
+               q.source_year, q.source_question_no, s.name AS subject_name
+        FROM question q LEFT JOIN subject s ON s.id = q.subject_id
+        WHERE q.id = #{id}
+        LIMIT 1
+    </select>
+
+    <select id="selectCurrentVersionNoForUpdate" resultType="java.lang.Integer">
+        SELECT current_version_no FROM question WHERE id = #{id} FOR UPDATE
+    </select>
+
+    <select id="selectVersion" resultType="map">
+        SELECT id AS version_id, question_id, version_no, edit_source,
+               stem_html, analysis_html, correct, answer_text, assets_json,
+               source_ref, source_name, source_year, source_question_no,
+               content_sha256, base_version_id, edit_note, created_at
+        FROM question_version
+        WHERE question_id = #{questionId} AND version_no = #{versionNo}
+        LIMIT 1
+    </select>
+
+    <select id="selectVersions" resultType="map">
+        SELECT version_no, edit_source, content_sha256, base_version_id,
+               edit_note, created_at,
+               CHAR_LENGTH(stem_html) AS stem_chars,
+               (analysis_html IS NULL) AS analysis_absent
+        FROM question_version
+        WHERE question_id = #{questionId}
+        ORDER BY version_no
+    </select>
+
+    <insert id="insertVersion" parameterType="map"
+            useGeneratedKeys="true" keyProperty="v.version_id">
+        INSERT INTO question_version (question_id, version_no, edit_source,
+            stem_html, analysis_html, correct, answer_text, assets_json,
+            source_ref, source_name, source_year, source_question_no,
+            content_sha256, base_version_id, edit_note)
+        VALUES (#{v.question_id}, #{v.version_no}, #{v.edit_source},
+            #{v.stem_html}, #{v.analysis_html}, #{v.correct}, #{v.answer_text},
+            #{v.assets_json}, #{v.source_ref}, #{v.source_name}, #{v.source_year},
+            #{v.source_question_no}, #{v.content_sha256}, #{v.base_version_id},
+            #{v.edit_note})
+    </insert>
+
+    <update id="updateQuestionContent">
+        UPDATE question
+        SET stem_html = #{stemHtml}, analysis_html = #{analysisHtml},
+            correct = #{correct}, answer_text = #{answerText},
+            current_version_id = #{versionId}, current_version_no = #{versionNo},
+            edited_manual = 1
+        WHERE id = #{id} AND current_version_no =
+            (SELECT current_version_no FROM
+                (SELECT current_version_no FROM question WHERE id = #{id} FOR UPDATE) cur)
+    </update>
+
+    <insert id="insertAnswerBind">
+        INSERT INTO answer_bind (bind_token, question_id, version_id, version_no,
+            status)
+        VALUES (#{token}, #{questionId}, #{versionId}, #{versionNo}, 'active')
+    </insert>
+
+    <select id="selectAnswerBind" resultType="map">
+        SELECT b.id, b.bind_token, b.question_id, b.version_id, b.version_no,
+               b.status, b.answer_text, b.bound_at, b.submitted_at,
+               v.stem_html, v.analysis_html, v.correct,
+               q.source_ref, q.source_year, q.source_question_no,
+               s.name AS subject_name
+        FROM answer_bind b
+        JOIN question_version v ON v.id = b.version_id
+        JOIN question q ON q.id = b.question_id
+        LEFT JOIN subject s ON s.id = q.subject_id
+        WHERE b.bind_token = #{token}
+        LIMIT 1
+    </select>
+
+    <update id="submitAnswerBind">
+        UPDATE answer_bind
+        SET status = 'submitted', answer_text = #{answerText},
+            submitted_at = NOW()
+        WHERE bind_token = #{token} AND status = 'active'
+    </update>
+</mapper>
