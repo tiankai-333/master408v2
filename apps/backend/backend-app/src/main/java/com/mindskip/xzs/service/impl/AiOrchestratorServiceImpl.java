@@ -73,6 +73,15 @@ public class AiOrchestratorServiceImpl implements AiOrchestratorService {
                 try {
                     consumer.send("status", "AI 正在判断是否需要调用学习工具...");
                     AiToolOrchestrator.Outcome outcome = toolOrchestrator.route(request, user);
+                    if (outcome.terminatedByLimit()) {
+                        // 工具循环轮次耗尽的显式终止：给调用方可读状态，不再把未消费
+                        // tool-call 文本当回答，也不落入普通对话网关额外调用一次模型。
+                        consumer.send("status", "工具调用轮次已达上限，本轮已终止；请稍后重试或换一种说法描述需求。");
+                        if (outcome.agentDraft() != null) {
+                            consumer.send("agentDraft", objectMapper.writeValueAsString(outcome.agentDraft()));
+                        }
+                        return;
+                    }
                     if (outcome.agentDraft() != null) {
                         consumer.send("agentDraft", objectMapper.writeValueAsString(outcome.agentDraft()));
                         return;

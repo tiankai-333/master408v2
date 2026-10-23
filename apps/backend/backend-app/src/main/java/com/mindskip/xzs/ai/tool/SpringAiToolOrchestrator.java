@@ -70,14 +70,43 @@ public class SpringAiToolOrchestrator implements AiToolOrchestrator {
         Prompt prompt = new Prompt(messages, options);
         ChatResponse response = chatModel.call(prompt);
         int rounds = 0;
-        while (response != null && response.hasToolCalls() && rounds++ < 4) {
+        while (response != null && response.hasToolCalls() && rounds < 4) {
+            rounds++;
             ToolExecutionResult execution = toolCallingManager.executeToolCalls(prompt, response);
             prompt = new Prompt(execution.conversationHistory(), options);
             response = chatModel.call(prompt);
         }
+        boolean terminatedByLimit = response != null && response.hasToolCalls();
+        if (terminatedByLimit) {
+            // 轮次耗尽：末次响应仍是未消费的 tool-call 消息，其文本不作为最终回答透出；
+            // 不再额外调用模型伪造终止总结，耗尽原因写入 run log 供检查。
+            insertExhaustionLog(request, user, rounds);
+            return new Outcome(tool.draft, null, tool.draft != null, true);
+        }
         String answer = response == null || response.getResult() == null
                 ? null : response.getResult().getOutput().getText();
-        return new Outcome(tool.draft, answer, tool.draft != null);
+        return new Outcome(tool.draft, answer, tool.draft != null, false);
+    }
+
+    private void insertExhaustionLog(AiWorkbenchRequestVM request, User user, int rounds) {
+        try {
+            Map<String, Object> trace = new LinkedHashMap<>();
+            trace.put("realToolCall", true);
+            trace.put("tool", "plan_practice");
+            trace.put("status", "loop_exhausted");
+            trace.put("rounds", rounds);
+            trace.put("error", "工具循环达到 " + rounds + " 轮上限，模型仍在请求工具调用，已显式终止");
+            AgentRunRecord record = new AgentRunRecord();
+            record.setUserId(user == null ? null : user.getId());
+            record.setRequestText(request == null ? null : request.getUserMessage());
+            record.setToolCallJson(JsonUtil.toJsonStr(trace));
+            record.setModelName("spring-ai-tool-calling");
+            record.setStatus("loop_exhausted");
+            record.setErrorMessage((String) trace.get("error"));
+            runtimeMapper.insertRunLog(record);
+        } catch (RuntimeException ignored) {
+            // 留痕失败不改变终止结果的语义
+        }
     }
 
     static final class PracticePlanningTool {
