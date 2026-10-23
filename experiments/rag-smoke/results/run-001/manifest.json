@@ -1,0 +1,27 @@
+{
+  "harness_version": "0.1.0",
+  "corpus": {
+    "data/corpus/c01.md": "fea581176ff63a8b1c23c2c46599a463c19408659e3f1f0862ff94b25c5faedd",
+    "data/corpus/c02.md": "7c5cd559d30b5c95167dbccff47c49ec932670d2f6d4af440d44ba67d095471a",
+    "data/corpus/c03.md": "40c92f2b9438cfb2542b2a1a9c46549e32a2a61921ffe2008f7cd4a73777eedc",
+    "data/corpus/c04.md": "3a4313bc2e60687f35c8c481c2a34d73cff85968ac8963449138eb2730e4178f",
+    "data/corpus/c05.md": "a5b0049a0cdbc7e6eae674febc1e08cf9e0788573061751737a44a511a69cfd5",
+    "data/corpus/c06.md": "18620655c1a504c6c360b51330039eac01116edb60e3ee1130132b3a35dab1c7",
+    "data/corpus/c07.md": "0fd4d82fca898be635bea8857fd95b0878744e3328d5c0008bd7cda4aa5c3fa3",
+    "data/corpus/c08.md": "833e10715516e8f3e95c8cc2ee6e9d2a655cf6c60f481c20711ee1a6f99f4654",
+    "data/corpus/c09.md": "406769685d83dad0ab455cb563deb2e24d31edca03898100bef8cf8cb02ed52b",
+    "data/corpus/c10.md": "57c86cd114212f6f26d891fd88c378e2a4be400246237b07d7c27ef9a883fb54"
+  },
+  "queries_sha256": "604d23ef9d6d5ddea8d2a3e8ec4651e682a941e4299de4b40d8a83a1ecc02c53",
+  "params": {
+    "ranker": "bm25",
+    "k1": 1.5,
+    "b": 0.75,
+    "topk": 5,
+    "tokenizer": "cjk-bigram+ascii-word, title x2"
+  },
+  "source_sha256": {
+    "rag_smoke/harness.py": "37b02f9064a710621dff3f6473dd37a42b5b38b1c7fd93d10f478139167f01f9",
+    "run.py": "b7e71488696e697630316c8019c99290645454e7804bb3c586e7ad3b82028e00"
+  }
+}

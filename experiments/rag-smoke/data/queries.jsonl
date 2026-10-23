@@ -1,0 +1,10 @@
+{"id": "q01", "text": "十进制整数怎么转换成二进制", "category": "normal", "relevant": ["c01"], "rationale": "c01 明确给出除 2 取余法和按位权展开法，直接回答本查询；无其他文档涉及进制转换。"}
+{"id": "q02", "text": "死锁产生的四个必要条件是什么", "category": "normal", "relevant": ["c07"], "rationale": "c07 逐条列出互斥、占有并等待、不可剥夺、循环等待四条件，正面回答查询。"}
+{"id": "q03", "text": "电脑同时开很多程序，为什么看起来都在运行", "category": "paraphrase", "relevant": ["c06"], "rationale": "c06 讲时间片轮转与优先级调度让多个进程交替使用 CPU、看起来同时运行；查询用口语表述，不含'进程/调度'等文档原词。"}
+{"id": "q04", "text": "网址前面加个 https，数据就不怕被偷看了吗", "category": "paraphrase", "relevant": ["c09"], "rationale": "c09 说明 HTTPS 在 HTTP 下加 TLS 加密层，防窃听和篡改，正面回答；查询是口语化改写，未出现'加密层/窃听'等原词。"}
+{"id": "q05", "text": "CPU 的 Cache 和浏览器缓存是一回事吗", "category": "confusable", "relevant": ["c04"], "rationale": "c04 讲 CPU 硬件 Cache，且明确'由 CPU 自动管理、对程序透明'，是回答硬件这半句的依据。易混淆点：c09 也讲浏览器本地缓存和 Cache-Control，词面高度重叠，但它是 HTTP 层缓存，与本查询的'CPU 的 Cache'不是同一层。人工判断 c09 为干扰项，不计入相关。不确定项：若把查询理解为'两者区别'，c09 可作辅助证据，粒度按文档级从严只标 c04。"}
+{"id": "q06", "text": "进程和线程，哪个是资源分配的基本单位", "category": "confusable", "relevant": ["c06"], "rationale": "c06 第一句直接定义'进程是资源分配的基本单位，线程是 CPU 调度的基本单位'。易混淆点：c07 反复出现'进程'一词，词法上会与查询匹配，但它讲死锁，不回答资源分配归属，为干扰项。"}
+{"id": "q07", "text": "补码可以直接拿来表示浮点数吗", "category": "confusable", "relevant": ["c02"], "rationale": "c02 讲补码用于带符号整数的表示与减法，是澄清'补码针对整数、浮点数另用 IEEE 754'的依据；语料未讲浮点数本身。易混淆点：查询带预设前提，正确文档只能部分否定前提，不能完整回答浮点数表示，标注时按'回答该查询所需的唯一相关文档'从严标 c02。"}
+{"id": "q08", "text": "快速排序的平均时间复杂度是多少", "category": "unanswerable", "relevant": [], "rationale": "语料 10 篇均为计算机组织与网络基础（进制、补码、流水线、存储、虚拟内存、进程线程、死锁、TCP、HTTP、哈希表），无任何排序算法文档，'排序'一词不在语料中。"}
+{"id": "q09", "text": "IPv6 地址一共有多少位", "category": "unanswerable", "relevant": [], "rationale": "语料网络部分只有 c08 TCP 和 c09 HTTP/HTTPS，均未涉及 IPv6 或地址长度，'IPv6'一词不在语料中。"}
+{"id": "q10", "text": "Python 的 GIL 是什么东西", "category": "unanswerable", "relevant": [], "rationale": "语料不涉及任何具体编程语言实现，c06 讲的是操作系统层面的线程，与 CPython 解释器的 GIL 无关，'Python/GIL'均不在语料中。"}

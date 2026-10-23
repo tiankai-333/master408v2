@@ -1,0 +1,32 @@
+{
+  "n_queries": 10,
+  "n_answerable": 7,
+  "n_unanswerable": 3,
+  "denominators": {
+    "hit/mrr": "7 条可作答查询",
+    "recall": "逐条分母为该查询标注的相关文档数（合计 7）",
+    "k": 5
+  },
+  "hit@k": 1.0,
+  "mean_recall@k": 1.0,
+  "mrr": 0.9285714285714286,
+  "by_category": {
+    "normal": {
+      "n": 2,
+      "hit@k": 1.0
+    },
+    "paraphrase": {
+      "n": 2,
+      "hit@k": 1.0
+    },
+    "confusable": {
+      "n": 3,
+      "hit@k": 1.0
+    }
+  },
+  "unanswerable_top1_scores": {
+    "q08": 2.818069,
+    "q09": 2.327603,
+    "q10": 2.162445
+  }
+}
