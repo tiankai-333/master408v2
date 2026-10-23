@@ -63,6 +63,8 @@ public final class NewdbQuestionValidator {
     /**
      * 校验顺序：来源身份 → 内容非空 → 选项切分 → 答案核对 → 组装消毒。
      * images 非空拒绝：v0 无资产表，带图题留待后续批次（不伪成功）。
+     * v1 富内容路径：question_html 存在时为权威内容，纯文本字段仅作选项切分/派生核对；
+     * 老记录（无 *_html）走原有纯文本组装，行为不变。
      */
     public static Result validate(NewdbQuestionRecord record, String sourceRef) {
         Integer year = record.year();
@@ -97,11 +99,54 @@ public final class NewdbQuestionValidator {
         if (answer.length() != 1 || !ANSWER_KEYS.contains(answer)) {
             return reject(year, no, "answer-invalid");
         }
+        if (record.questionHtml() != null && !record.questionHtml().isBlank()) {
+            return validateRich(record, options, sourceRef);
+        }
         String stemHtml = StemHtmlAssembler.withOptions(StemHtmlAssembler.stem(stem), options);
         String analysisHtml = StemHtmlAssembler.analysis(analysis);
         String cleanStem = HtmlSanitizer.clean(stemHtml);
         String cleanAnalysis = HtmlSanitizer.clean(analysisHtml);
         if (HtmlSanitizer.countDataKeys(cleanStem) != options.size()) {
+            return reject(year, no, "sanitize-broke-structure");
+        }
+        return new Accepted(new Prepared(record, options, sourceRef,
+                cleanStem, cleanAnalysis, HtmlSanitizer.toText(cleanStem)));
+    }
+
+    /**
+     * 富内容路径：源片段（table/sup/sub + `\(`…`\)` 公式文本）白名单消毒，
+     * 结构完整性 = 表格数与公式定界符对在消毒前后一致；夹带 img 明确拒绝（v0 无资产表）。
+     * 派生 stem_text 仍从消毒后 raw 重建（RAG 派生文本与展示权威内容分离）。
+     */
+    private static Result validateRich(NewdbQuestionRecord record, List<String> options,
+                                       String sourceRef) {
+        Integer year = record.year();
+        Integer no = record.questionNumber();
+        String stemFragment = record.questionHtml();
+        String optionsFragment = record.optionsHtml() == null ? "" : record.optionsHtml();
+        String analysisFragment = record.analysisHtml() == null ? "" : record.analysisHtml();
+        // 契约：富路径不绕过四选项——选项片段文本必须含 A./B./C./D. 各一次以上
+        // （必要条件；选项数与答案字母契约仍由上方纯文本切分路径保证）
+        if (!optionsFragment.isBlank()) {
+            String optText = org.jsoup.Jsoup.parse(optionsFragment).text();
+            for (String key : new String[]{"A.", "B.", "C.", "D."}) {
+                if (!optText.contains(key)) {
+                    return reject(year, no, "options-html-letter-missing");
+                }
+            }
+        }
+        String stemRaw = StemHtmlAssembler.richWithOptions(
+                StemHtmlAssembler.richStem(stemFragment), optionsFragment);
+        String analysisRaw = analysisFragment.isBlank()
+                ? StemHtmlAssembler.analysis(record.analysis())
+                : StemHtmlAssembler.richAnalysis(analysisFragment);
+        if (HtmlSanitizer.hasImageTag(stemRaw) || HtmlSanitizer.hasImageTag(analysisRaw)) {
+            return reject(year, no, "images-not-supported-in-v0");
+        }
+        String cleanStem = HtmlSanitizer.clean(stemRaw);
+        String cleanAnalysis = HtmlSanitizer.clean(analysisRaw);
+        if (HtmlSanitizer.countTables(cleanStem) != HtmlSanitizer.countTables(stemRaw)
+                || HtmlSanitizer.countInlineFormulas(cleanStem) != HtmlSanitizer.countInlineFormulas(stemRaw)) {
             return reject(year, no, "sanitize-broke-structure");
         }
         return new Accepted(new Prepared(record, options, sourceRef,

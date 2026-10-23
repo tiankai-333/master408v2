@@ -158,7 +158,10 @@ public class NewdbImportService {
         row.setCorrect(item.correct());
         row.setAnswerText(null);
         row.setStatus(1);
-        row.setStatusReason(null);
+        // 公式来源待核标记：annotation=权威 TeX；reconstructed=渲染几何重建，语义待核（页面可见）
+        String fs = item.source().formulaSource();
+        row.setStatusReason("reconstructed".equals(fs)
+                ? "公式为渲染几何重建（无权威 TeX annotation），语义待核" : null);
         // 上线阀：校验链已保证 4 选项齐全 + correct 非空 + 消毒结构完整（D-33 纪律 2）
         row.setDisplayReady(1);
         row.setLicenseTag("crawler-review");

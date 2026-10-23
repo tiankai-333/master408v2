@@ -43,6 +43,22 @@ public final class StemHtmlAssembler {
         return sb.toString();
     }
 
+    /**
+     * 富内容路径（v1）：源 HTML 片段（爬虫保留的结构标记 + `\(`…`\)` 公式文本）按同一
+     * 容器约定包裹；片段本身不转义（保留 table/sup/sub 标记），入库前仍过白名单消毒。
+     */
+    public static String richStem(String stemFragment) {
+        return "<div class=\"q-stem\">" + stemFragment + "</div>";
+    }
+
+    public static String richWithOptions(String stemHtml, String optionsFragment) {
+        return stemHtml + "<div class=\"q-options\">" + optionsFragment + "</div>";
+    }
+
+    public static String richAnalysis(String analysisFragment) {
+        return "<div class=\"q-analysis\">" + analysisFragment + "</div>";
+    }
+
     private static void appendParagraphs(StringBuilder sb, String rawText) {
         for (String line : rawText.replace("\r\n", "\n").split("\n", -1)) {
             String trimmed = line.trim();
