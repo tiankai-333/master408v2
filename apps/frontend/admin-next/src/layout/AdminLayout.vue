@@ -11,6 +11,10 @@
           <el-icon><Document /></el-icon>
           <span>题目</span>
         </el-menu-item>
+        <el-menu-item index="/papers">
+          <el-icon><Document /></el-icon>
+          <span>试卷</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>

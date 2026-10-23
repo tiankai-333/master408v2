@@ -12,7 +12,8 @@ import java.util.List;
  * 仅在 newdb profile 下注册（NewdbWebConfig @EnableConfigurationProperties）。
  */
 @ConfigurationProperties(prefix = "newdb")
-public record NewdbProperties(Ds ds, Admin admin, @DefaultValue("8h") Duration tokenTtl, Importer importer) {
+public record NewdbProperties(Ds ds, Admin admin, @DefaultValue("8h") Duration tokenTtl,
+                              Importer importer, PaperImporter paperImporter) {
 
     /**
      * 新库连接（与旧库主数据源 spring.datasource 相互独立，见 NewdbDbClient）。
@@ -31,5 +32,15 @@ public record NewdbProperties(Ds ds, Admin admin, @DefaultValue("8h") Duration t
      */
     public record Importer(boolean enabled, String file, List<Integer> years,
                            @DefaultValue("5") int perYearLimit, String batchTag) {
+    }
+
+    /**
+     * 整卷导入门控（M1，候选库专用）：enabled=false 时不执行；
+     * dir 为提取器 JSON 目录，SQL 含候选库扩展列，库必须为 master408_candidate；
+     * assetsDir 为本地题目配图副本目录（NewdbAssetController 只读 serve）。
+     */
+    public record PaperImporter(boolean enabled, String dir,
+                                @DefaultValue("m1-papers-2015-2024") String batchTag,
+                                @DefaultValue String assetsDir) {
     }
 }

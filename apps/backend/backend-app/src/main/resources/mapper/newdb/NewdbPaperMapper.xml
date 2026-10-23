@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 候选库（master408_candidate）paper/question SQL：含候选库扩展列
+     assets_json / source_sha256 / warnings_json。仅在 NEWDB_DB_URL 指向候选库时可用。 -->
+<mapper namespace="com.mindskip.xzs.newdb.repository.NewdbPaperMapper">
+
+    <sql id="paperColumns">
+        SELECT p.id, p.name, p.paper_type, p.source_year, p.question_ids, p.question_count,
+               p.batch_id, p.source_sha256, p.source_url, p.warning_count, p.warnings_json,
+               p.create_time, p.update_time
+        FROM paper p
+    </sql>
+
+    <select id="selectByName" resultType="com.mindskip.xzs.newdb.domain.NewdbPaperDO">
+        <include refid="paperColumns"/>
+        WHERE p.name = #{name}
+        LIMIT 1
+    </select>
+
+    <select id="selectById" resultType="com.mindskip.xzs.newdb.domain.NewdbPaperDO">
+        <include refid="paperColumns"/>
+        WHERE p.id = #{id}
+        LIMIT 1
+    </select>
+
+    <select id="listAll" resultType="com.mindskip.xzs.newdb.domain.NewdbPaperDO">
+        <include refid="paperColumns"/>
+        ORDER BY p.source_year
+    </select>
+
+    <insert id="insert" parameterType="com.mindskip.xzs.newdb.domain.NewdbPaperDO"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO paper (name, paper_type, source_year, question_ids, question_count,
+            batch_id, source_sha256, source_url, warning_count, warnings_json)
+        VALUES (#{name}, #{paperType}, #{sourceYear}, #{questionIds}, #{questionCount},
+            #{batchId}, #{sourceSha256}, #{sourceUrl}, #{warningCount}, #{warningsJson})
+    </insert>
+
+    <!-- 重放时按名更新结构列：paper 非内容 raw，question_ids 属结构，允许随批次刷新；
+         question 内容本身仍以 source_ref 幂等不重复写。 -->
+    <update id="updateContent">
+        UPDATE paper
+        SET question_ids = #{row.questionIds}, question_count = #{row.questionCount},
+            batch_id = #{row.batchId}, source_sha256 = #{row.sourceSha256},
+            source_url = #{row.sourceUrl}, warning_count = #{row.warningCount},
+            warnings_json = #{row.warningsJson}
+        WHERE id = #{id}
+    </update>
+
+    <sql id="candidateQuestionColumns">
+        SELECT q.id, q.question_type, q.subject_id, s.name AS subject_name, q.score, q.difficult,
+               q.source_name, q.source_year, q.source_question_no, q.source_ref, q.stem_html,
+               q.analysis_html, q.stem_text, q.correct, q.answer_text, q.status, q.status_reason,
+               q.display_ready, q.license_tag, q.batch_id, b.batch_tag, q.assets_json,
+               q.create_time, q.update_time
+        FROM question q
+        LEFT JOIN subject s ON s.id = q.subject_id
+        LEFT JOIN import_batch b ON b.id = q.batch_id
+    </sql>
+
+    <select id="selectQuestionsByIds" resultType="com.mindskip.xzs.newdb.domain.NewdbQuestionDO">
+        <include refid="candidateQuestionColumns"/>
+        WHERE q.id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+
+    <select id="selectQuestionDetail" resultType="com.mindskip.xzs.newdb.domain.NewdbQuestionDO">
+        <include refid="candidateQuestionColumns"/>
+        WHERE q.id = #{id}
+        LIMIT 1
+    </select>
+
+    <select id="selectQuestionBySourceRef" resultType="com.mindskip.xzs.newdb.domain.NewdbQuestionDO">
+        <include refid="candidateQuestionColumns"/>
+        WHERE q.source_ref = #{sourceRef}
+        LIMIT 1
+    </select>
+
+    <insert id="insertWithAssets" parameterType="com.mindskip.xzs.newdb.domain.NewdbQuestionDO"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO question (question_type, subject_id, score, difficult, source_name,
+            source_year, source_question_no, source_ref, stem_html, analysis_html, stem_text,
+            correct, answer_text, status, status_reason, display_ready, license_tag, batch_id,
+            assets_json)
+        VALUES (#{questionType}, #{subjectId}, #{score}, #{difficult}, #{sourceName},
+            #{sourceYear}, #{sourceQuestionNo}, #{sourceRef}, #{stemHtml}, #{analysisHtml},
+            #{stemText}, #{correct}, #{answerText}, #{status}, #{statusReason},
+            #{displayReady}, #{licenseTag}, #{batchId}, #{assetsJson})
+    </insert>
+
+    <update id="updateQuestionContent" parameterType="com.mindskip.xzs.newdb.domain.NewdbQuestionDO">
+        UPDATE question
+        SET stem_html = #{stemHtml}, analysis_html = #{analysisHtml}, stem_text = #{stemText},
+            correct = #{correct}, answer_text = #{answerText}, status = #{status},
+            status_reason = #{statusReason}, display_ready = #{displayReady},
+            license_tag = #{licenseTag}, batch_id = #{batchId}, assets_json = #{assetsJson}
+        WHERE id = #{id}
+    </update>
+</mapper>

@@ -14,7 +14,9 @@ const routes = [
     children: [
       { path: '', name: 'workbench', component: () => import('@/views/WorkbenchView.vue') },
       { path: 'questions', name: 'questions', component: () => import('@/views/QuestionListView.vue') },
-      { path: 'questions/:id', name: 'question-detail', component: () => import('@/views/QuestionDetailView.vue') }
+      { path: 'questions/:id', name: 'question-detail', component: () => import('@/views/QuestionDetailView.vue') },
+      { path: 'papers', name: 'papers', component: () => import('@/views/PaperListView.vue') },
+      { path: 'papers/:id', name: 'paper-detail', component: () => import('@/views/PaperDetailView.vue') }
     ]
   }
 ]

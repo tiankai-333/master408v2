@@ -5,6 +5,7 @@
 <script>
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
+import { useAuthStore } from '@/stores/auth'
 
 /**
  * v-html 的唯一入口（安全边界）：
@@ -68,12 +69,45 @@ export default {
       // 在字符串层完成公式渲染再交给 v-html；不修改已挂载 DOM，避免与 Vue diff 冲突。
       // 输入已是导入管线消毒产物，渲染仅发生在定界符内文本。
       this.renderedHtml = this.html ? renderTextDelimiters(this.html) : ''
+      this.$nextTick(this.loadAuthedImages)
+    },
+    // 受控资源图（src=/api/newdb/asset/...，导入器改写产物）无法在 <img> 上带
+    // Authorization 头，挂载后经带 token 的 fetch 换 blob URL；失败显示占位并
+    // console.error，不静默。
+    async loadAuthedImages() {
+      const root = this.$el
+      if (!root) return
+      const imgs = root.querySelectorAll('img[src^="/api/newdb/asset/"]')
+      for (const img of imgs) {
+        if (img.dataset.loaded === '1') continue
+        const src = img.getAttribute('src')
+        img.dataset.loaded = '1'
+        try {
+          const resp = await fetch(src, {
+            headers: { Authorization: 'Bearer ' + useAuthStore().token }
+          })
+          if (!resp.ok) throw new Error('HTTP ' + resp.status)
+          img.src = URL.createObjectURL(await resp.blob())
+        } catch (e) {
+          console.error('[QuestionHtml] 受控资源图加载失败:', src, e)
+          img.setAttribute('alt', '受控资源图加载失败（' + e.message + '）')
+          img.style.border = '1px dashed var(--el-color-danger, #f56c6c)'
+        }
+      }
     }
   }
 }
 </script>
 
 <style scoped>
+/* 宽图（如 906px 链表时序图）在小容器内不裁切：等比缩放 + 可横向滚动看完整图 */
+.question-html {
+  overflow-x: auto;
+}
+.question-html :deep(svg) {
+  max-width: 100%;
+  height: auto;
+}
 .question-html :deep(table) {
   border-collapse: collapse;
   margin: 8px 0;

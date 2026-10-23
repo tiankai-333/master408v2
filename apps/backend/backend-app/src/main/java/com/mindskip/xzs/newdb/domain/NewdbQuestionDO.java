@@ -29,6 +29,7 @@ public class NewdbQuestionDO {
     private String licenseTag;
     private Long batchId;
     private String batchTag;
+    private String assetsJson;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 
@@ -214,5 +215,13 @@ public class NewdbQuestionDO {
 
     public void setUpdateTime(LocalDateTime updateTime) {
         this.updateTime = updateTime;
+    }
+
+    public String getAssetsJson() {
+        return assetsJson;
+    }
+
+    public void setAssetsJson(String assetsJson) {
+        this.assetsJson = assetsJson;
     }
 }

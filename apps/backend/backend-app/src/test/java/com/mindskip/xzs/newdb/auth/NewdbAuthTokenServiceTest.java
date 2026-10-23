@@ -19,7 +19,7 @@ class NewdbAuthTokenServiceTest {
     private static final String PASS = "unit-pass-022";
 
     private static NewdbAuthTokenService service(NewdbProperties.Admin admin) {
-        return new NewdbAuthTokenService(new NewdbProperties(null, admin, Duration.ofHours(1), null));
+        return new NewdbAuthTokenService(new NewdbProperties(null, admin, Duration.ofHours(1), null, null));
     }
 
     @Test

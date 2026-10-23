@@ -29,7 +29,7 @@ class NewdbAuthControllerTest {
     @BeforeEach
     void setUp() {
         NewdbAuthTokenService tokenService = new NewdbAuthTokenService(
-                new NewdbProperties(null, new NewdbProperties.Admin(USER, PASS), Duration.ofHours(1), null));
+                new NewdbProperties(null, new NewdbProperties.Admin(USER, PASS), Duration.ofHours(1), null, null));
         mockMvc = MockMvcBuilders.standaloneSetup(new NewdbAuthController(tokenService)).build();
     }
 

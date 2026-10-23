@@ -31,3 +31,9 @@ newdb:
     years: ${NEWDB_IMPORT_YEARS:2011,2024}
     per-year-limit: ${NEWDB_IMPORT_PER_YEAR:5}
     batch-tag: ${NEWDB_IMPORT_BATCH_TAG:seed-local-first-2026w43}
+  paper-importer:
+    # M1 整卷导入（候选库专用）：SQL 含扩展列，库必须为 master408_candidate
+    enabled: ${NEWDB_PAPER_IMPORT_ENABLED:false}
+    dir: ${NEWDB_PAPER_IMPORT_DIR:}
+    batch-tag: ${NEWDB_PAPER_IMPORT_BATCH_TAG:m1-papers-2015-2024}
+    assets-dir: ${NEWDB_PAPER_ASSETS_DIR:}
